@@ -16,7 +16,7 @@ __DEF_PROJ = True
 __DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 
-logging.basicConfig(filename='rescal.log',level=logging.DEBUG)
+logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
 
 def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
@@ -105,7 +105,7 @@ def rescal(X, rank, **kwargs):
     
     # precompute norms of X 
     normX = [normOfSparse(M)**2 for M in X]
-    Xflat = [M.todense().flatten() for M in X]
+    Xflat = [M for M in X]
     sumNormX = sum(normX)
    
     # initialize A
@@ -134,7 +134,6 @@ def rescal(X, rank, **kwargs):
     exectimes = []
     ARAt = zeros((n,n), dtype=dtype)
     for iter in xrange(maxIter):
-        print(iter)
         tic = time.clock()
         fitold = fit
         A = __updateA(X, A, R, lmbda)
@@ -148,7 +147,7 @@ def rescal(X, rank, **kwargs):
         # compute fit value
         f = lmbda*(norm(A)**2)
         for i in range(k):
-            f += normX[i] + norm(ARAt)**2 - 2*dot(Xflat[i], ARAt.flatten()) + lmbda*(R[i].flatten()**2).sum()
+            f += normX[i] + norm(ARAt)**2 - 2*Xflat[i].multiply(ARAt).sum() + lmbda*(R[i].flatten()**2).sum()
         f *= 0.5
         
         fit = 1 - f / sumNormX
@@ -202,7 +201,7 @@ def __projectSlices(X, Q):
 X = []
 #X.append(array([[0, 1, 0, 1], [0, 1, 0, 1], [1, 1, 1, 1], [0, 0, 0, 0]]))
 #X.append(array([[1, 0, 1, 1], [1, 0, 1, 1], [0, 1, 1, 1], [1, 0, 0, 0]]))
-dim = 100
+dim = 1000
 numSlices = 5
 for i in range(numSlices-1):
  row = random_integers(0,dim-1,0.2*dim*dim)
