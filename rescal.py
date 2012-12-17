@@ -32,8 +32,11 @@ def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
         fits.append(res[2])
     return models[argmin(fits)]
 
-def normOfSparse(M):
-    norm = sqrt(sum(M.dot(M.transpose()).diagonal()))
+def squareFrobeniusNormOfSparse(M):
+    """
+    Computes the square of the Frobenius norm
+    """
+    norm = sum(M.dot(M.transpose()).diagonal())
     return norm
 
 def rescal(X, rank, **kwargs):
@@ -104,10 +107,11 @@ def rescal(X, rank, **kwargs):
     _log.debug('[Config] dtype: %s' % dtype)
     
     # precompute norms of X 
-    normX = [normOfSparse(M)**2 for M in X]
+    normX = [squareFrobeniusNormOfSparse(M) for M in X]
+    _log.debug('[Config] finished precomputing norms')
     Xflat = [M for M in X]
     sumNormX = sum(normX)
-   
+    
     # initialize A
     if ainit == 'random':
         A = array(rand(n, rank), dtype=dtype)
