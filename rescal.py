@@ -1,5 +1,5 @@
 import logging, time
-from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg
+from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt
 from numpy.linalg import qr, pinv, norm, inv 
 from scipy.linalg import eigh
 from numpy.random import rand
@@ -31,6 +31,10 @@ def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
         models.append(res)
         fits.append(res[2])
     return models[argmin(fits)]
+
+def normOfSparse(M):
+    norm = sqrt(sum(M.dot(M.transpose()).diagonal()))
+    return norm
 
 def rescal(X, rank, **kwargs):
     """
@@ -100,8 +104,8 @@ def rescal(X, rank, **kwargs):
     _log.debug('[Config] dtype: %s' % dtype)
     
     # precompute norms of X 
-    normX = [norm(M)**2 for M in X]
-    Xflat = [M.flatten() for M in X]
+    normX = [normOfSparse(M)**2 for M in X]
+    Xflat = [M.todense().flatten() for M in X]
     sumNormX = sum(normX)
    
     # initialize A
@@ -130,6 +134,7 @@ def rescal(X, rank, **kwargs):
     exectimes = []
     ARAt = zeros((n,n), dtype=dtype)
     for iter in xrange(maxIter):
+        print(iter)
         tic = time.clock()
         fitold = fit
         A = __updateA(X, A, R, lmbda)
@@ -164,7 +169,9 @@ def __updateA(X, A, R, lmbda):
 
     AtA = dot(A.T,A)
     for i in range(len(X)):
-        F += dot(X[i], dot(A, R[i].T)) + dot(X[i].T, dot(A, R[i]))
+        ar = dot(A, R[i])
+        summand = X[i].T.dot(ar)
+        F += X[i].dot(dot(A, R[i].T)) + summand
         E += dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
     A = dot(F, inv(lmbda * eye(rank) + E))
     return A
@@ -176,12 +183,12 @@ def __updateR(X, A, lmbda):
     if lmbda == 0:
         ainv = dot(pinv(dot(At, A)), At)
         for i in range(len(X)):
-            R.append( dot(ainv, dot(X[i], ainv.T)) )
+            R.append( dot(ainv, X[i].dot(ainv.T)) )
     else :
         AtA = dot(At, A)
         tmp = inv(kron(AtA, AtA) + lmbda * eye(r**2))
         for i in range(len(X)):
-            AtXA = dot(At, dot(X[i], A)) 
+            AtXA = dot(At, X[i].dot(A)) 
             R.append( dot(AtXA.flatten(), tmp).reshape(r, r) )
     return R
 
@@ -189,19 +196,19 @@ def __projectSlices(X, Q):
     q = Q.shape[1]
     X2 = []
     for i in range(len(X)):
-        X2.append( dot(Q.T, dot(X[i], Q)) )
+        X2.append( dot(Q.T, X[i].dot(Q)) )
     return X2
 
 X = []
 #X.append(array([[0, 1, 0, 1], [0, 1, 0, 1], [1, 1, 1, 1], [0, 0, 0, 0]]))
 #X.append(array([[1, 0, 1, 1], [1, 0, 1, 1], [0, 1, 1, 1], [1, 0, 0, 0]]))
-dim = 1000
+dim = 10000
 numSlices = 5
 for i in range(numSlices-1):
  row = random_integers(0,dim-1,0.2*dim*dim)
  col = random_integers(0,dim-1,0.2*dim*dim)
  A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim))
- X.append(A.toarray())
+ X.append(A)
 
 result = rescal(X, 4, lmbda=0.1)
 #A, R, f, iter+1, array(exectimes)
