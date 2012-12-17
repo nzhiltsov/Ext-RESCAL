@@ -1,5 +1,5 @@
 import logging, time
-from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt
+from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt, savetxt
 from numpy.linalg import qr, pinv, norm, inv 
 from scipy.linalg import eigh
 from numpy.random import rand
@@ -202,7 +202,7 @@ def __projectSlices(X, Q):
 X = []
 #X.append(array([[0, 1, 0, 1], [0, 1, 0, 1], [1, 1, 1, 1], [0, 0, 0, 0]]))
 #X.append(array([[1, 0, 1, 1], [1, 0, 1, 1], [0, 1, 1, 1], [1, 0, 0, 0]]))
-dim = 10000
+dim = 100
 numSlices = 5
 for i in range(numSlices-1):
  row = random_integers(0,dim-1,0.2*dim*dim)
@@ -216,6 +216,7 @@ print('Objective function value:')
 print(result[2])
 print('# of iterations:')
 print(result[3])
-print('Matrix of latent embeddings:')
-print(result[0])
+#print('Matrix of latent embeddings:')
+A = result[0]
+savetxt("latent-embeddings.csv", A)
 
