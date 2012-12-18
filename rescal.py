@@ -6,6 +6,7 @@ from numpy.random import rand
 from numpy.random import random_integers
 from scipy import sparse
 from scipy.sparse import coo_matrix
+from scipy.sparse.linalg import eigsh
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
@@ -116,12 +117,12 @@ def rescal(X, rank, **kwargs):
     if ainit == 'random':
         A = array(rand(n, rank), dtype=dtype)
     elif ainit == 'nvecs':
-        S = zeros((n, n), dtype=dtype)
-        T = zeros((n, n), dtype=dtype)
+        S = coo_matrix((n, n), dtype=dtype)
+        T = coo_matrix((n, n), dtype=dtype)
         for i in range(k):
             T = X[i]
             S = S + T + T.T
-        evals, A = eigh(S,eigvals=(n-rank,n-1))
+        evals, A = eigsh(S,k=n-rank)
     else :
         raise 'Unknown init option ("%s")' % ainit
 
@@ -173,8 +174,7 @@ def __updateA(X, A, R, lmbda):
     AtA = dot(A.T,A)
     for i in range(len(X)):
         ar = dot(A, R[i])
-        summand = X[i].T.dot(ar)
-        F += X[i].dot(dot(A, R[i].T)) + summand
+        F += X[i].dot(dot(A, R[i].T)) + X[i].T.dot(ar)
         E += dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
     A = dot(F, inv(lmbda * eye(rank) + E))
     return A
