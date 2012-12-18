@@ -137,7 +137,7 @@ def rescal(X, rank, **kwargs):
     # compute factorization
     fit = fitchange = fitold = f = 0
     exectimes = []
-    ARAt = zeros((n,n), dtype=dtype)
+#    ARAt = zeros((n,n), dtype=dtype)
     for iter in xrange(maxIter):
         tic = time.clock()
         fitold = fit
@@ -152,6 +152,7 @@ def rescal(X, rank, **kwargs):
         # compute fit value
         f = lmbda*(norm(A)**2)
         for i in range(k):
+            ARAt = dot(A, dot(R[i], A.T))
             f += normX[i] + norm(ARAt)**2 - 2*Xflat[i].multiply(ARAt).sum() + lmbda*(R[i].flatten()**2).sum()
         f *= 0.5
         
