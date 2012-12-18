@@ -1,4 +1,4 @@
-import logging, time
+import logging, time, argparse
 from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt, savetxt
 from numpy.linalg import qr, pinv, norm, inv 
 from scipy.linalg import eigh
@@ -203,17 +203,21 @@ def __projectSlices(X, Q):
     return X2
 
 X = []
-#X.append(array([[0, 1, 0, 1], [0, 1, 0, 1], [1, 1, 1, 1], [0, 0, 0, 0]]))
-#X.append(array([[1, 0, 1, 1], [1, 0, 1, 1], [0, 1, 1, 1], [1, 0, 0, 0]]))
-dim = 1000
-numSlices = 5
+parser = argparse.ArgumentParser()
+parser.add_argument("--entities", type=int, help="number of entities")
+parser.add_argument("--predicates", type=int, help="number of predicates")
+parser.add_argument("--latent", type=int, help="number of latent components")
+args = parser.parse_args()
+dim = args.entities
+numSlices = args.predicates
+numLatentComponents = args.latent
 for i in range(numSlices-1):
- row = random_integers(0,dim-1,0.2*dim*dim)
- col = random_integers(0,dim-1,0.2*dim*dim)
+ row = random_integers(0,dim-1,dim)
+ col = random_integers(0,dim-1,dim)
  A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim))
  X.append(A)
 
-result = rescal(X, 4, lmbda=0.1)
+result = rescal(X, numLatentComponents, lmbda=0.1)
 #A, R, f, iter+1, array(exectimes)
 print('Objective function value:')
 print(result[2])
