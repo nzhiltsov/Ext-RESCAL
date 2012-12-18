@@ -7,6 +7,7 @@ from numpy.random import random_integers
 from scipy import sparse
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import eigsh
+import numpy as np
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
@@ -115,14 +116,14 @@ def rescal(X, rank, **kwargs):
     
     # initialize A
     if ainit == 'random':
-        A = array(rand(n, rank), dtype=dtype)
+        A = array(rand(n, rank), dtype=np.float64)
     elif ainit == 'nvecs':
-        S = coo_matrix((n, n), dtype=dtype)
+        S = coo_matrix((n, n), dtype=np.float64)
         T = coo_matrix((n, n), dtype=dtype)
         for i in range(k):
             T = X[i]
             S = S + T + T.T
-        evals, A = eigsh(S,k=n-rank)
+        evals, A = eigsh(S,k=rank)
     else :
         raise 'Unknown init option ("%s")' % ainit
 
@@ -169,8 +170,8 @@ def rescal(X, rank, **kwargs):
 
 def __updateA(X, A, R, lmbda):
     n, rank = A.shape
-    F = zeros((n, rank), dtype=X[0].dtype)
-    E = zeros((rank, rank), dtype=X[0].dtype)
+    F = zeros((n, rank), dtype=np.float64)
+    E = zeros((rank, rank), dtype=np.float64)
 
     AtA = dot(A.T,A)
     for i in range(len(X)):
@@ -215,7 +216,7 @@ numLatentComponents = args.latent
 for i in range(numSlices-1):
  row = random_integers(0,dim-1,dim)
  col = random_integers(0,dim-1,dim)
- A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim))
+ A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8)
  X.append(A)
 
 result = rescal(X, numLatentComponents, lmbda=0.1)
