@@ -1,5 +1,5 @@
 import logging, time, argparse
-from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt, savetxt
+from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
 from scipy.linalg import eigh
 from numpy.random import rand
@@ -8,6 +8,8 @@ from scipy import sparse
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import eigsh
 import numpy as np
+import os
+import fnmatch
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
@@ -204,20 +206,32 @@ def __projectSlices(X, Q):
         X2.append( dot(Q.T, X[i].dot(Q)) )
     return X2
 
-X = []
 parser = argparse.ArgumentParser()
-parser.add_argument("--entities", type=int, help="number of entities")
-parser.add_argument("--predicates", type=int, help="number of predicates")
 parser.add_argument("--latent", type=int, help="number of latent components")
 args = parser.parse_args()
-dim = args.entities
-numSlices = args.predicates
 numLatentComponents = args.latent
-for i in range(numSlices-1):
- row = random_integers(0,dim-1,dim)
- col = random_integers(0,dim-1,dim)
- A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8)
- X.append(A)
+
+dim = 0
+with open('./data/entity-ids') as entityIds:
+    for line in entityIds:
+          dim += 1
+print 'The number of entities: %d' % dim          
+
+numSlices = 0
+X = []
+for file in os.listdir('./data'):
+    if fnmatch.fnmatch(file, '*-rows'):
+        numSlices += 1
+        row = loadtxt('./data/' + file, dtype=np.int32)
+        if row.size == 1: 
+            row = np.atleast_1d(row)
+        col = loadtxt('./data/' + file.replace("rows", "cols"), dtype=np.int32)
+        if col.size == 1: 
+            col = np.atleast_1d(col)
+        A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8)
+        X.append(A)
+        
+print 'The number of slices: %d' % numSlices
 
 result = rescal(X, numLatentComponents, lmbda=0.1)
 #A, R, f, iter+1, array(exectimes)
