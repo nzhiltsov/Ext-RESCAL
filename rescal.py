@@ -10,6 +10,7 @@ from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
 import fnmatch
+import carray as ca
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
@@ -42,6 +43,44 @@ def squareFrobeniusNormOfSparse(M):
     """
     norm = sum(M.dot(M.transpose()).diagonal())
     return norm
+
+def minus(L, R):
+    """
+    Compute L - R for cArray matrices
+    """
+    l1, l2 = L.shape
+    r1, r2 = R.shape
+    if l1 != r1 or l2 != r2:
+        raise 'Both the matrices must have the same shape.'
+    matrix = L.copy()
+    for i in range(l1):
+        for j in range(l2):
+            matrix[i,j] = matrix[i,j] - R[i,j]
+    return matrix
+
+def dotAsCArray(L, R):
+    """
+    Computes the dot product as a cArray
+    """
+    l1, l2 = L.shape
+    r1, r2 = R.shape
+    
+    matrix = ca.zeros((l1, r2))
+    for i in range(l1):
+        for j in range(r2):
+            matrix[i,j] = dot(L[i,:],R[:,j])
+    return matrix
+
+def squareOfMatrix(M):
+    """
+    Computes A^T * A, i.e., the square of a given matrix
+    """
+    n,r = M.shape
+    matrix = ca.zeros((r, r))
+    for i in range(r):
+        for j in range(r):
+            matrix[i,j] = dot(M[:,i], M[:,j])
+    return matrix
 
 def rescal(X, rank, **kwargs):
     """
@@ -117,8 +156,11 @@ def rescal(X, rank, **kwargs):
     sumNormX = sum(normX)
     
     # initialize A
+    A = ca.zeros((n,rank))
     if ainit == 'random':
-        A = array(rand(n, rank), dtype=np.float64)
+#        A = array(rand(n, rank), dtype=np.float64)
+         for k in range(n/1000):
+             A[k*1000:(k+1)*1000,0:rank] = rand(1000, rank)
     elif ainit == 'nvecs':
         S = coo_matrix((n, n), dtype=np.float64)
         T = coo_matrix((n, n), dtype=dtype)
@@ -135,15 +177,18 @@ def rescal(X, rank, **kwargs):
         X2 = __projectSlices(X, Q)
         R = __updateR(X2, A2, lmbda)
     else :
-        R = __updateR(X, A, lmbda)
+        raise 'Projection via QR decomposition is required; pass proj=true'
+#        R = __updateR(X, A, lmbda)
 
     # compute factorization
-    fit = fitchange = fitold = f = 0
+    fit = fitchange = fitold = f = regularizedFit = 0
     exectimes = []
-#    ARAt = zeros((n,n), dtype=dtype)
+    Aold = None
+    Rold = None
+
     for iter in xrange(maxIter):
         tic = time.clock()
-        fitold = fit
+        fitold = regularizedFit
         A = __updateA(X, A, R, lmbda)
         if proj:
             Q, A2 = qr(A)
@@ -152,35 +197,58 @@ def rescal(X, rank, **kwargs):
         else :
             R = __updateR(X, A, lmbda)
 
-        # compute fit value
-        f = lmbda*(norm(A)**2)
-        for i in range(k):
-            ARAt = dot(A, dot(R[i], A.T))
-            f += normX[i] + norm(ARAt)**2 - 2*Xflat[i].multiply(ARAt).sum() + lmbda*(R[i].flatten()**2).sum()
-        f *= 0.5
+        # compute fit values
+        if Aold != None and Rold != None:
+            Rfit = 0
+            regRFit = 0
+            for i in range(len(R)):
+                Rfit += norm(R[i] - Rold[i])**2
+                regRFit += norm(R[i])**2
+            fit = norm(minus(A, Aold))**2 + Rfit
+            regularizedFit = fit + lmbda*(norm(A)**2) + lmbda*regRFit
+            toc = time.clock()
+            exectimes.append( toc - tic )
+            fitchange = abs(fitold - regularizedFit)
+            _log.debug('[%3d] approxFit: %.5f | fit: %.5f | delta: %7.1e | secs: %.5f' % (iter, 
+            fit, regularizedFit, fitchange, exectimes[-1]))
+            
+            if iter > 1 and fitchange < conv:
+                break
         
-        fit = 1 - f / sumNormX
-        fitchange = abs(fitold - fit)
-        
-        toc = time.clock()
-        exectimes.append( toc - tic )
-        _log.debug('[%3d] fit: %.5f | delta: %7.1e | secs: %.5f' % (iter, 
-            fit, fitchange, exectimes[-1]))
-        if iter > 1 and fitchange < conv:
-            break
+        Aold = A
+        Rold = R    
+#        f = lmbda*(norm(A)**2)
+#        for i in range(k):
+#            prod = dot(R[i], A)
+#            ARAt = dotAsCArray(A, prod)
+#            f += normX[i] + norm(ARAt)**2 - 2*Xflat[i].multiply(ARAt).sum() + lmbda*(R[i].flatten()**2).sum()
+#        f *= 0.5
+#        
+#        fit = 1 - f / sumNormX
+#        fitchange = abs(fitold - fit)
+#        
+#        toc = time.clock()
+#        exectimes.append( toc - tic )
+#        _log.debug('[%3d] fit: %.5f | delta: %7.1e | secs: %.5f' % (iter, 
+#            fit, fitchange, exectimes[-1]))
+#        if iter > 1 and fitchange < conv:
+#            break
     return A, R, f, iter+1, array(exectimes)
 
 def __updateA(X, A, R, lmbda):
     n, rank = A.shape
-    F = zeros((n, rank), dtype=np.float64)
+#    F = zeros((n, rank), dtype=np.float64)
+    F = coo_matrix((n,rank), dtype=np.float64)
     E = zeros((rank, rank), dtype=np.float64)
 
-    AtA = dot(A.T,A)
+    AtA = squareOfMatrix(A)
     for i in range(len(X)):
-        ar = dot(A, R[i])
-        F += X[i].dot(dot(A, R[i].T)) + X[i].T.dot(ar)
-        E += dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
-    A = dot(F, inv(lmbda * eye(rank) + E))
+        ar = dotAsCArray(A, R[i])
+        art = dotAsCArray(A, R[i].T)
+        summand = X[i].dot(art) + X[i].T.dot(ar)
+        F = F + summand
+        E = E + dotAsCArray(R[i], dotAsCArray(AtA, R[i].T)) + dotAsCArray(R[i].T, dotAsCArray(AtA, R[i]))
+    A = dotAsCArray(F, inv(lmbda * eye(rank) + E))
     return A
 
 def __updateR(X, A, lmbda):
@@ -233,7 +301,7 @@ for file in os.listdir('./data'):
         
 print 'The number of slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, lmbda=0.1)
+result = rescal(X, numLatentComponents, lmbda=0.1, init='random')
 #A, R, f, iter+1, array(exectimes)
 print('Objective function value:')
 print(result[2])
