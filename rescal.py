@@ -18,7 +18,7 @@ __all__ = ['rescal', 'rescal_with_random_restarts']
 __DEF_MAXITER = 500
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-5
+__DEF_CONV = 1e-2
 __DEF_LMBDA = 0
 
 logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
@@ -156,7 +156,7 @@ def rescal(X, rank, **kwargs):
     sumNormX = sum(normX)
     
     # initialize A
-    A = ca.zeros((n,rank))
+    A = ca.zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
 #        A = array(rand(n, rank), dtype=np.float64)
          for k in range(n/1000):
@@ -188,51 +188,50 @@ def rescal(X, rank, **kwargs):
 
     for iter in xrange(maxIter):
         tic = time.clock()
-        fitold = regularizedFit
+        
         A = __updateA(X, A, R, lmbda)
         if proj:
             Q, A2 = qr(A)
             X2 = __projectSlices(X, Q)
             R = __updateR(X2, A2, lmbda)
         else :
-            R = __updateR(X, A, lmbda)
+            raise 'Projection via QR decomposition is required; pass proj=true'
+#            R = __updateR(X, A, lmbda)
 
         # compute fit values
         if Aold != None and Rold != None:
             Rfit = 0
-            regRFit = 0
-            for i in range(len(R)):
-                Rfit += norm(R[i] - Rold[i])**2
-                regRFit += norm(R[i])**2
-            fit = norm(minus(A, Aold))**2 + Rfit
-            regularizedFit = fit + lmbda*(norm(A)**2) + lmbda*regRFit
+            
+            if lmbda != 0:
+                regRFit = 0
+                for i in range(len(R)):
+                    Rfit += norm(R[i] - Rold[i])**2
+                    regRFit += norm(R[i])**2
+                fit = norm(minus(A, Aold))**2 + Rfit
+                regularizedFit = fit + lmbda*(norm(A)**2) + lmbda*regRFit
+            else :
+                for i in range(len(R)):
+                    Rfit += norm(R[i] - Rold[i])**2
+                fit = norm(minus(A, Aold))**2 + Rfit
+                
+            
             toc = time.clock()
             exectimes.append( toc - tic )
-            fitchange = abs(fitold - regularizedFit)
-            _log.debug('[%3d] approxFit: %.5f | fit: %.5f | delta: %7.1e | secs: %.5f' % (iter, 
+            fitchange = abs(fitold - fit)
+            if lmbda != 0:
+                _log.debug('[%3d] approxFit: %.5f | regularized fit: %.5f | approxFit delta: %7.1e | secs: %.5f' % (iter, 
             fit, regularizedFit, fitchange, exectimes[-1]))
+            else :
+                _log.debug('[%3d] approxFit: %.5f | approxFit delta: %7.1e | secs: %.5f' % (iter, 
+            fit, fitchange, exectimes[-1]))
             
+            fitold = fit
             if iter > 1 and fitchange < conv:
                 break
         
         Aold = A
         Rold = R    
-#        f = lmbda*(norm(A)**2)
-#        for i in range(k):
-#            prod = dot(R[i], A)
-#            ARAt = dotAsCArray(A, prod)
-#            f += normX[i] + norm(ARAt)**2 - 2*Xflat[i].multiply(ARAt).sum() + lmbda*(R[i].flatten()**2).sum()
-#        f *= 0.5
-#        
-#        fit = 1 - f / sumNormX
-#        fitchange = abs(fitold - fit)
-#        
-#        toc = time.clock()
-#        exectimes.append( toc - tic )
-#        _log.debug('[%3d] fit: %.5f | delta: %7.1e | secs: %.5f' % (iter, 
-#            fit, fitchange, exectimes[-1]))
-#        if iter > 1 and fitchange < conv:
-#            break
+
     return A, R, f, iter+1, array(exectimes)
 
 def __updateA(X, A, R, lmbda):
@@ -245,8 +244,7 @@ def __updateA(X, A, R, lmbda):
     for i in range(len(X)):
         ar = dotAsCArray(A, R[i])
         art = dotAsCArray(A, R[i].T)
-        summand = X[i].dot(art) + X[i].T.dot(ar)
-        F = F + summand
+        F = F + X[i].dot(art) + X[i].T.dot(ar)
         E = E + dotAsCArray(R[i], dotAsCArray(AtA, R[i].T)) + dotAsCArray(R[i].T, dotAsCArray(AtA, R[i]))
     A = dotAsCArray(F, inv(lmbda * eye(rank) + E))
     return A
@@ -301,13 +299,10 @@ for file in os.listdir('./data'):
         
 print 'The number of slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, lmbda=0.1, init='random')
-#A, R, f, iter+1, array(exectimes)
-print('Objective function value:')
-print(result[2])
-print('# of iterations:')
-print(result[3])
-#print('Matrix of latent embeddings:')
+result = rescal(X, numLatentComponents, init='random')
+print 'Objective function value: %.5f' % result[2]
+print '# of iterations: %d' % result[3] 
+#print the matrix of latent embeddings
 A = result[0]
 savetxt("latent-embeddings.csv", A)
 
