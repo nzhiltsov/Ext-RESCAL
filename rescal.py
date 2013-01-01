@@ -24,7 +24,6 @@ __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-2
 __DEF_LMBDA = 0
-__DEF_SAMPLESIZE = 1e-2
 
 logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
@@ -133,9 +132,6 @@ def rescal(X, rank, **kwargs):
     proj : boolean, optional 
         Whether or not to use the QR decomposition when computing R_k.
         True by default 
-    samplesize: float, optional
-        The proportion of sample tensor values involved in computing the fitting value.
-        0.01 by default
     maxIter : int, optional 
         Maximium number of iterations of the ALS algorithm. 500 by default. 
     conv : float, optional 
@@ -161,7 +157,6 @@ def rescal(X, rank, **kwargs):
     maxIter = kwargs.pop('maxIter', __DEF_MAXITER)
     conv = kwargs.pop('conv', __DEF_CONV)
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
-    samplesize = kwargs.pop('samplesize', __DEF_SAMPLESIZE)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -300,10 +295,8 @@ def __projectSlices(X, Q):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--latent", type=int, help="number of latent components")
-parser.add_argument("--samplesize", type=float, help="proportion (in percents) of sampled tensor elements while computing the fit value")
 args = parser.parse_args()
 numLatentComponents = args.latent
-samplesizeVal = args.samplesize
 
 dim = 0
 with open('./data2/entity-ids') as entityIds:
@@ -327,7 +320,7 @@ for file in os.listdir('./data2'):
         
 print 'The number of slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, init='random', samplesize=samplesizeVal)
+result = rescal(X, numLatentComponents, init='random')
 print 'Objective function value: %.5f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
