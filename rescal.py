@@ -257,8 +257,7 @@ def rescal(X, rank, **kwargs):
 
 def __updateA(X, A, R, lmbda):
     n, rank = A.shape
-#    F = zeros((n, rank), dtype=np.float64)
-    F = coo_matrix((n,rank), dtype=np.float64)
+    F = ca.zeros((n,rank))
     E = zeros((rank, rank), dtype=np.float64)
 
     AtA = squareOfMatrix(A)
