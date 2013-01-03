@@ -3,7 +3,7 @@ import time
 import threading
 from itertools import izip, count
 
-def foreach(f,l,ARk, X, A, threads=4,return_=False):
+def foreach(f, l, threads=4, return_=False):
     """
     Apply f to each element of l, in parallel
     """
@@ -34,9 +34,9 @@ def foreach(f,l,ARk, X, A, threads=4,return_=False):
                 try:
                     if return_:
                         n,x = v
-                        d[n] = f(x, ARk, X, A)
+                        d[n] = f(x)
                     else:
-                        f(v, ARk, X[i], A)
+                        f(v)
                 except:
                     e = sys.exc_info()
                     iteratorlock.acquire()
@@ -59,76 +59,11 @@ def foreach(f,l,ARk, X, A, threads=4,return_=False):
             return [v for (n,v) in r]
     else:
         if return_:
-            return [f(v, ARk, X, A) for v in l]
+            return [f(v) for v in l]
         else:
             for v in l:
-                f(v, ARk, X, A)
+                f(v)
             return
 
-def parallel_map(f,l,ARk, X, A,threads=4):
-    return foreach(f,l,ARk, X, A, threads=threads,return_=True)
-
-def parallel_map2(f,l,ARki, A,threads=4):
-    return foreach2(f,l,ARki, A, threads=threads,return_=True)
-
-def foreach2(f,l,ARki, A, threads=4,return_=False):
-    """
-    Apply f to each element of l, in parallel
-    """
-
-    if threads>1:
-        iteratorlock = threading.Lock()
-        exceptions = []
-        if return_:
-            n = 0
-            d = {}
-            i = izip(count(),l.__iter__())
-        else:
-            i = l.__iter__()
-
-
-        def runall():
-            while True:
-                iteratorlock.acquire()
-                try:
-                    try:
-                        if exceptions:
-                            return
-                        v = i.next()
-                    finally:
-                        iteratorlock.release()
-                except StopIteration:
-                    return
-                try:
-                    if return_:
-                        n,x = v
-                        d[n] = f(x, ARki, A)
-                    else:
-                        f(v, ARki, A)
-                except:
-                    e = sys.exc_info()
-                    iteratorlock.acquire()
-                    try:
-                        exceptions.append(e)
-                    finally:
-                        iteratorlock.release()
-        
-        threadlist = [threading.Thread(target=runall) for j in xrange(threads)]
-        for t in threadlist:
-            t.start()
-        for t in threadlist:
-            t.join()
-        if exceptions:
-            a, b, c = exceptions[0]
-            raise a, b, c
-        if return_:
-            r = d.items()
-            r.sort()
-            return [v for (n,v) in r]
-    else:
-        if return_:
-            return [f(v, ARki, A) for v in l]
-        else:
-            for v in l:
-                f(v, ARki, A)
-            return
+def parallel_map(f, l, threads=4):
+    return foreach(f, l, threads=threads,return_=True)

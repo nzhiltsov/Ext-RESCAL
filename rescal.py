@@ -13,7 +13,6 @@ import fnmatch
 import handythread
 import operator
 import itertools
-from multiprocessing import Pool
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
@@ -21,7 +20,7 @@ __all__ = ['rescal', 'rescal_with_random_restarts']
 __DEF_MAXITER = 500
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-2
+__DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 
 logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
@@ -61,19 +60,15 @@ def squareOfMatrix(M):
             matrix[i,j] = dot(M[:,i], M[:,j])
     return matrix
 
-def ARAtFunc(j, ARki, A):
-    """
-    Computes the j-th row of the matrix ARk * A^T
-    """
-    return dot(ARki, A[j,:])
 
-def fitNorm(i):   
+def fitNorm(t):   
     """
-    Computes the squared Frobenius norm of the i-th fitting matrix row
+    Computes i,j element of the squared Frobenius norm of the fitting matrix
     """
+    row, col = t
     n, r = Aglobal.shape
-    ARAtValues = handythread.parallel_map2(ARAtFunc, range(n), ARk[i,:], Aglobal, threads=2)
-    return norm(Xiglobal.getrow(i).todense() - ARAtValues)**2
+    ARAtValue = dot(ARk[row,:], Aglobal[col,:])
+    return (Xiglobal[row, col] - ARAtValue)**2
 
 def rescal(X, rank, **kwargs):
     """
@@ -202,8 +197,11 @@ def rescal(X, rank, **kwargs):
             ARk = dot(A, R[i])
             global Xiglobal
             Xiglobal = X[i]           
-            p = Pool(4)
-            fits = p.map(fitNorm, range(n))
+            Xrow, Xcol = Xiglobal.nonzero()
+            nonzeroElems = []
+            for rr in range(len(Xrow)):
+                nonzeroElems.append((Xrow[rr], Xcol[rr]))
+            fits = handythread.parallel_map(fitNorm, nonzeroElems)
             fit += sum(fits)           
         fit *= 0.5
         fit += regularizedFit
@@ -289,7 +287,7 @@ for file in os.listdir('./data2'):
         
 print 'The number of slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, init='random')
+result = rescal(X, numLatentComponents, init='random', lmbda=0.1)
 print 'Objective function value: %.5f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
