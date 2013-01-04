@@ -261,25 +261,29 @@ def __projectSlices(X, Q):
     return X2
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--latent", type=int, help="number of latent components")
+parser.add_argument("--latent", type=int, help="number of latent components", required=True)
+parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
+parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
+inputDir = args.input
+regularizationParam = args.lmbda
 
 dim = 0
-with open('./data2/entity-ids') as entityIds:
+with open('./%s/entity-ids' % inputDir) as entityIds:
     for line in entityIds:
           dim += 1
 print 'The number of entities: %d' % dim          
 
 numSlices = 0
 X = []
-for file in os.listdir('./data2'):
+for file in os.listdir('./%s' % inputDir):
     if fnmatch.fnmatch(file, '*-rows'):
         numSlices += 1
-        row = loadtxt('./data2/' + file, dtype=np.int32)
+        row = loadtxt('./%s/%s' % (inputDir, file), dtype=np.int32)
         if row.size == 1: 
             row = np.atleast_1d(row)
-        col = loadtxt('./data2/' + file.replace("rows", "cols"), dtype=np.int32)
+        col = loadtxt('./%s/%s' % (inputDir, file.replace("rows", "cols")), dtype=np.int32)
         if col.size == 1: 
             col = np.atleast_1d(col)
         Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
@@ -287,7 +291,7 @@ for file in os.listdir('./data2'):
         
 print 'The number of slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, init='random', lmbda=0.1)
+result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
 print 'Objective function value: %.5f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
