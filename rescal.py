@@ -10,11 +10,9 @@ from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
 import fnmatch
-import carray as ca
 import handythread
 import operator
 import itertools
-from multiprocessing import Pool, Process, Manager, Array
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
@@ -22,14 +20,14 @@ __all__ = ['rescal', 'rescal_with_random_restarts']
 __DEF_MAXITER = 500
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-2
+__DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 
 logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
-ARk = ca.zeros((1,1))
-Aglobal = ca.zeros((1,1))
-Xiglobal = ca.zeros((1,1))
+ARk = zeros((1,1))
+Aglobal = zeros((1,1))
+Xiglobal = zeros((1,1))
 
 def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
     """
@@ -51,57 +49,26 @@ def squareFrobeniusNormOfSparse(M):
     norm = sum(M.dot(M.transpose()).diagonal())
     return norm
 
-def minus(L, R):
-    """
-    Compute L - R for cArray matrices
-    """
-    l1, l2 = L.shape
-    r1, r2 = R.shape
-    if l1 != r1 or l2 != r2:
-        raise 'Both the matrices must have the same shape.'
-    matrix = L.copy()
-    for i in range(l1):
-        for j in range(l2):
-            matrix[i,j] = matrix[i,j] - R[i,j]
-    return matrix
-
-def dotAsCArray(L, R):
-    """
-    Computes the dot product as a cArray
-    """
-    l1, l2 = L.shape
-    r1, r2 = R.shape
-    
-    matrix = ca.zeros((l1, r2))
-    for i in range(l1):
-        for j in range(r2):
-            matrix[i,j] = dot(L[i,:],R[:,j])
-    return matrix
-
 def squareOfMatrix(M):
     """
     Computes A^T * A, i.e., the square of a given matrix
     """
     n,r = M.shape
-    matrix = ca.zeros((r, r))
+    matrix = zeros((r, r))
     for i in range(r):
         for j in range(r):
             matrix[i,j] = dot(M[:,i], M[:,j])
     return matrix
 
-def ARAtFunc(j, ARki, A):
-    """
-    Computes the j-th row of the matrix ARk * A^T
-    """
-    return dot(ARki, A[j,:])
 
-def fitNorm(i):   
+def fitNorm(t):   
     """
-    Computes the squared Frobenius norm of the i-th fitting matrix row
+    Computes i,j element of the squared Frobenius norm of the fitting matrix
     """
-    n, r = A.shape
-    ARAtValues = handythread.parallel_map2(ARAtFunc, range(n), ARk[i,:], Aglobal, threads=7)
-    return norm(Xiglobal.getrow(i).todense() - ARAtValues)**2
+    row, col = t
+    n, r = Aglobal.shape
+    ARAtValue = dot(ARk[row,:], Aglobal[col,:])
+    return (Xiglobal[row, col] - ARAtValue)**2
 
 def rescal(X, rank, **kwargs):
     """
@@ -176,11 +143,9 @@ def rescal(X, rank, **kwargs):
     sumNormX = sum(normX)
     
     # initialize A
-    A = ca.zeros((n,rank), dtype=np.float64)
+    A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
-#        A = array(rand(n, rank), dtype=np.float64)
-         for k in range(n/1000):
-             A[k*1000:(k+1)*1000,0:rank] = rand(1000, rank)
+        A = array(rand(n, rank), dtype=np.float64)
     elif ainit == 'nvecs':
         S = coo_matrix((n, n), dtype=np.float64)
         T = coo_matrix((n, n), dtype=dtype)
@@ -229,11 +194,14 @@ def rescal(X, rank, **kwargs):
         fit = 0
         for i in range(len(R)):
             global ARk
-            ARk = dotAsCArray(A, R[i])
+            ARk = dot(A, R[i])
             global Xiglobal
             Xiglobal = X[i]           
-            p = Pool(4)
-            fits = p.map(fitNorm, range(n))
+            Xrow, Xcol = Xiglobal.nonzero()
+            nonzeroElems = []
+            for rr in range(len(Xrow)):
+                nonzeroElems.append((Xrow[rr], Xcol[rr]))
+            fits = handythread.parallel_map(fitNorm, nonzeroElems)
             fit += sum(fits)           
         fit *= 0.5
         fit += regularizedFit
@@ -251,22 +219,22 @@ def rescal(X, rank, **kwargs):
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
-#            if iter > 1 and fitchange < conv:
-#                break
+        if iter > 1 and fitchange < conv:
+            break
     return A, R, fit, iter+1, array(exectimes)
 
 def __updateA(X, A, R, lmbda):
     n, rank = A.shape
-    F = ca.zeros((n,rank))
+    F = zeros((n,rank))
     E = zeros((rank, rank), dtype=np.float64)
 
     AtA = squareOfMatrix(A)
     for i in range(len(X)):
-        ar = dotAsCArray(A, R[i])
-        art = dotAsCArray(A, R[i].T)
+        ar = dot(A, R[i])
+        art = dot(A, R[i].T)
         F = F + X[i].dot(art) + X[i].T.dot(ar)
-        E = E + dotAsCArray(R[i], dotAsCArray(AtA, R[i].T)) + dotAsCArray(R[i].T, dotAsCArray(AtA, R[i]))
-    A = dotAsCArray(F, inv(lmbda * eye(rank) + E))
+        E = E + dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
+    A = dot(F, inv(lmbda * eye(rank) + E))
     return A
 
 def __updateR(X, A, lmbda):
@@ -293,33 +261,37 @@ def __projectSlices(X, Q):
     return X2
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--latent", type=int, help="number of latent components")
+parser.add_argument("--latent", type=int, help="number of latent components", required=True)
+parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
+parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
+inputDir = args.input
+regularizationParam = args.lmbda
 
 dim = 0
-with open('./data2/entity-ids') as entityIds:
+with open('./%s/entity-ids' % inputDir) as entityIds:
     for line in entityIds:
           dim += 1
 print 'The number of entities: %d' % dim          
 
 numSlices = 0
 X = []
-for file in os.listdir('./data2'):
+for file in os.listdir('./%s' % inputDir):
     if fnmatch.fnmatch(file, '*-rows'):
         numSlices += 1
-        row = loadtxt('./data2/' + file, dtype=np.int32)
+        row = loadtxt('./%s/%s' % (inputDir, file), dtype=np.int32)
         if row.size == 1: 
             row = np.atleast_1d(row)
-        col = loadtxt('./data2/' + file.replace("rows", "cols"), dtype=np.int32)
+        col = loadtxt('./%s/%s' % (inputDir, file.replace("rows", "cols")), dtype=np.int32)
         if col.size == 1: 
             col = np.atleast_1d(col)
-        A = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8)
-        X.append(A)
+        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
+        X.append(Xi)
         
 print 'The number of slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, init='random')
+result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
 print 'Objective function value: %.5f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
