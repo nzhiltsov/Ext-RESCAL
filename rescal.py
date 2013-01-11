@@ -49,17 +49,6 @@ def squareFrobeniusNormOfSparse(M):
     norm = sum(M.dot(M.transpose()).diagonal())
     return norm
 
-def squareOfMatrix(M):
-    """
-    Computes A^T * A, i.e., the square of a given matrix
-    """
-    n,r = M.shape
-    matrix = zeros((r, r))
-    for i in range(r):
-        for j in range(r):
-            matrix[i,j] = dot(M[:,i], M[:,j])
-    return matrix
-
 
 def fitNorm(t):   
     """
@@ -228,7 +217,7 @@ def __updateA(X, A, R, lmbda):
     F = zeros((n,rank))
     E = zeros((rank, rank), dtype=np.float64)
 
-    AtA = squareOfMatrix(A)
+    AtA = dot(A.T, A)
     for i in range(len(X)):
         ar = dot(A, R[i])
         art = dot(A, R[i].T)
@@ -264,10 +253,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--latent", type=int, help="number of latent components", required=True)
 parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
+parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
 inputDir = args.input
 regularizationParam = args.lmbda
+outputEntities = args.outputentities
 
 dim = 0
 with open('./%s/entity-ids' % inputDir) as entityIds:
@@ -296,5 +287,5 @@ print 'Objective function value: %.5f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
 A = result[0]
-savetxt("latent-embeddings.csv", A)
+savetxt(outputEntities, A)
 
