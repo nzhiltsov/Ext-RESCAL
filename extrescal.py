@@ -17,13 +17,13 @@ __DEF_PROJ = True
 __DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 
-logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
+logging.basicConfig(filename='extrescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
 ARk = empty((1,1))
 Aglobal = empty((1,1))
 Xiglobal = empty((1,1))
 
-def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
+def rescal_with_random_restarts(X, D, rank, restarts=10, **kwargs):
     """
     Restarts RESCAL multiple time from random starting point and 
     returns factorization with best fit.
@@ -31,7 +31,7 @@ def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
     models = []
     fits = []
     for i in range(restarts):
-        res = rescal(X, rank, init='random', **kwargs)
+        res = rescal(X, D, rank, **kwargs)
         models.append(res)
         fits.append(res[2])
     return models[argmin(fits)]
@@ -53,7 +53,7 @@ def fitNorm(row, col):
     ARAtValue = dot(ARk[row,:], Aglobal[col,:])
     return (Xiglobal[row, col] - ARAtValue)**2
 
-def rescal(X, rank, **kwargs):
+def rescal(X, D, rank, **kwargs):
     """
     RESCAL 
 
@@ -71,6 +71,9 @@ def rescal(X, rank, **kwargs):
     ----------
     X : list
         List of frontal slices X_k of the tensor X. The shape of each X_k is ('N', 'N')
+    D : matrix
+        A sparse matrix involved in the tensor factorization (aims to incorporate
+        the entity-term matrix aka document-term matrix)
     rank : int 
         Rank of the factorization
     lmbda : float, optional 
@@ -128,7 +131,7 @@ def rescal(X, rank, **kwargs):
     # initialize A
     A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
-        A = array(rand(n, rank), dtype=np.float64)    
+        A = array(rand(n, rank), dtype=np.float64)
     else :
         raise 'This type of initialization is not supported, please use random'
 
@@ -140,7 +143,11 @@ def rescal(X, rank, **kwargs):
     else :
         raise 'Projection via QR decomposition is required; pass proj=true'
 #        R = __updateR(X, A, lmbda)
-
+    
+    # initialize V
+    Drow, Dcol = D.shape
+    V = array(rand(rank, Dcol), dtype=np.float64)
+    
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
@@ -148,7 +155,7 @@ def rescal(X, rank, **kwargs):
     for iter in xrange(maxIter):
         tic = time.clock()
         
-        A = __updateA(X, A, R, lmbda)
+        A = __updateA(X, A, R, V, lmbda)
         global Aglobal
         Aglobal = A
         if proj:
@@ -159,6 +166,7 @@ def rescal(X, rank, **kwargs):
             raise 'Projection via QR decomposition is required; pass proj=true'
 #            R = __updateR(X, A, lmbda)
 
+        V = __updateV(A, D, lmbda)
         # compute fit values
         regularizedFit = 0
         if lmbda != 0:
@@ -166,7 +174,13 @@ def rescal(X, rank, **kwargs):
             for i in range(len(R)):
                 regRFit += norm(R[i])**2
             regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
-            
+        
+        extendedFit = 0
+        if lmbda != 0:
+            extendedFit += norm(D - dot(A, V))**2 + lmbda*(norm(V)**2)
+        else :
+            extendedFit += norm(D - dot(A, V))**2    
+        
         fit = 0
         for i in range(len(R)):
             global ARk
@@ -180,6 +194,7 @@ def rescal(X, rank, **kwargs):
             fit += sum(fits)           
         fit *= 0.5
         fit += regularizedFit
+        fit += extendedFit
         fit /= sumNormX 
                 
             
@@ -196,9 +211,9 @@ def rescal(X, rank, **kwargs):
         fitold = fit
         if iter > 1 and fitchange < conv:
             break
-    return A, R, fit, iter+1, array(exectimes)
+    return A, R, fit, iter+1, array(exectimes), V
 
-def __updateA(X, A, R, lmbda):
+def __updateA(X, A, R, V, lmbda):
     n, rank = A.shape
     F = zeros((n,rank))
     E = zeros((rank, rank), dtype=np.float64)
@@ -207,9 +222,9 @@ def __updateA(X, A, R, lmbda):
     for i in range(len(X)):
         ar = dot(A, R[i])
         art = dot(A, R[i].T)
-        F = F + X[i].dot(art) + X[i].T.dot(ar)
+        F = F + X[i].dot(art) + X[i].T.dot(ar) + D.dot(V.T)
         E = E + dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
-    A = dot(F, inv(lmbda * eye(rank) + E))
+    A = dot(F, inv(lmbda * eye(rank) + E + dot(V, V.T)))
     return A
 
 def __updateR(X, A, lmbda):
@@ -228,6 +243,17 @@ def __updateR(X, A, lmbda):
             R.append( dot(AtXA.flatten(), tmp).reshape(r, r) )
     return R
 
+def __updateV(A, D, lmbda):
+    n, rank = A.shape    
+    At = A.T
+    invPart = empty((1, 1))
+    if lmbda == 0:
+        invPart = inv(dot(At, A))
+    else :
+        invPart = inv(dot(At, A) + lmbda * eye(rank))
+    return dot(invPart, At) * D
+        
+
 def __projectSlices(X, Q):
     q = Q.shape[1]
     X2 = []
@@ -240,11 +266,13 @@ parser.add_argument("--latent", type=int, help="number of latent components", re
 parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
+parser.add_argument("--outputterms", type=str, help="the file, where the latent embedding for terms will be output", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
 inputDir = args.input
 regularizationParam = args.lmbda
 outputEntities = args.outputentities
+outputTerms = args.outputterms
 
 dim = 0
 with open('./%s/entity-ids' % inputDir) as entityIds:
@@ -266,12 +294,28 @@ for file in os.listdir('./%s' % inputDir):
         Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
         X.append(Xi)
         
-print 'The number of slices: %d' % numSlices
+print 'The number of tensor slices: %d' % numSlices
 
-result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
+extDim = 0
+with open('./%s/words' % inputDir) as words:
+    for line in words:
+          extDim += 1
+print 'The number of words: %d' % extDim
+
+extRow = loadtxt('./%s/ext-matrix-rows' % inputDir, dtype=np.int32)
+if extRow.size == 1: 
+    extRow = np.atleast_1d(extRow)
+extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
+if extCol.size == 1: 
+    extCol = np.atleast_1d(extCol)
+D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.uint8).tocsr()        
+
+result = rescal(X, D, numLatentComponents, init='random', lmbda=regularizationParam)
 print 'Objective function value: %.10f' % result[2]
 print '# of iterations: %d' % result[3] 
-#print the matrix of latent embeddings
+#print the matrices of latent embeddings
 A = result[0]
 savetxt(outputEntities, A)
+V = result[5]
+savetxt(outputTerms, V)
 

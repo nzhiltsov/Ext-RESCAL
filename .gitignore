@@ -1,2 +1,6 @@
 *.pyc
 *.log
+.pydevproject
+.project
+data-50k
+data-9k
