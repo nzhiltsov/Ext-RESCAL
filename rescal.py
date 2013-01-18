@@ -1,23 +1,17 @@
 import logging, time, argparse
-from numpy import dot, zeros, kron, array, eye, argmax, argmin, ones, linalg, sqrt, savetxt, loadtxt
+from numpy import dot, zeros, empty, kron, array, eye, argmin, ones, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
-from scipy.linalg import eigh
 from numpy.random import rand
-from numpy.random import random_integers
 from scipy import sparse
 from scipy.sparse import coo_matrix
-from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
 import fnmatch
-import handythread
-import operator
-import itertools
 
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
 
-__DEF_MAXITER = 500
+__DEF_MAXITER = 100
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-5
@@ -25,9 +19,9 @@ __DEF_LMBDA = 0
 
 logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
-ARk = zeros((1,1))
-Aglobal = zeros((1,1))
-Xiglobal = zeros((1,1))
+ARk = empty((1,1))
+Aglobal = empty((1,1))
+Xiglobal = empty((1,1))
 
 def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
     """
@@ -52,13 +46,10 @@ def squareFrobeniusNormOfSparse(M):
         norm += M[rows[i],cols[i]] ** 2
     return norm
 
-
-def fitNorm(t):   
+def fitNorm(row, col):   
     """
     Computes i,j element of the squared Frobenius norm of the fitting matrix
     """
-    row, col = t
-    n, r = Aglobal.shape
     ARAtValue = dot(ARk[row,:], Aglobal[col,:])
     return (Xiglobal[row, col] - ARAtValue)**2
 
@@ -137,16 +128,9 @@ def rescal(X, rank, **kwargs):
     # initialize A
     A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
-        A = array(rand(n, rank), dtype=np.float64)
-    elif ainit == 'nvecs':
-        S = coo_matrix((n, n), dtype=np.float64)
-        T = coo_matrix((n, n), dtype=dtype)
-        for i in range(k):
-            T = X[i]
-            S = S + T + T.T
-        evals, A = eigsh(S,k=rank)
+        A = array(rand(n, rank), dtype=np.float64)    
     else :
-        raise 'Unknown init option ("%s")' % ainit
+        raise 'This type of initialization is not supported, please use random'
 
     # initialize R
     if proj:
@@ -190,10 +174,9 @@ def rescal(X, rank, **kwargs):
             global Xiglobal
             Xiglobal = X[i]           
             Xrow, Xcol = Xiglobal.nonzero()
-            nonzeroElems = []
+            fits = []
             for rr in range(len(Xrow)):
-                nonzeroElems.append((Xrow[rr], Xcol[rr]))
-            fits = handythread.parallel_map(fitNorm, nonzeroElems)
+                fits.append(fitNorm(Xrow[rr], Xcol[rr]))
             fit += sum(fits)           
         fit *= 0.5
         fit += regularizedFit
@@ -204,10 +187,10 @@ def rescal(X, rank, **kwargs):
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
         if lmbda != 0:
-            _log.debug('[%3d] approxFit: %7.1e | regularized fit: %7.1e | approxFit delta: %7.1e | secs: %.5f' % (iter, 
+            _log.debug('[%3d] approxFit: %.7f | regularized fit: %.7f | approxFit delta: %.7f | secs: %.5f' % (iter, 
         fit, regularizedFit, fitchange, exectimes[-1]))
         else :
-            _log.debug('[%3d] approxFit: %7.1e | approxFit delta: %7.1e | secs: %.5f' % (iter, 
+            _log.debug('[%3d] approxFit: %.7f | approxFit delta: %.7f | secs: %.5f' % (iter, 
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
@@ -286,7 +269,7 @@ for file in os.listdir('./%s' % inputDir):
 print 'The number of slices: %d' % numSlices
 
 result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
-print 'Objective function value: %.5f' % result[2]
+print 'Objective function value: %.10f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
 A = result[0]
