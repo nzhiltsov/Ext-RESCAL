@@ -12,6 +12,7 @@ __version__ = "0.1"
 __all__ = ['rescal', 'rescal_with_random_restarts']
 
 __DEF_MAXITER = 100
+__DEF_PREHEATNUM = 80
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-5
@@ -110,6 +111,7 @@ def rescal(X, D, rank, **kwargs):
     maxIter = kwargs.pop('maxIter', __DEF_MAXITER)
     conv = kwargs.pop('conv', __DEF_CONV)
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
+    preheatnum = kwargs.pop('preheatnum', __DEF_PREHEATNUM)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -182,21 +184,23 @@ def rescal(X, D, rank, **kwargs):
             extendedFit += norm(D - dot(A, V))**2    
         
         fit = 0
-        for i in range(len(R)):
-            global ARk
-            ARk = dot(A, R[i])
-            global Xiglobal
-            Xiglobal = X[i]           
-            Xrow, Xcol = Xiglobal.nonzero()
-            fits = []
-            for rr in range(len(Xrow)):
-                fits.append(fitNorm(Xrow[rr], Xcol[rr]))
-            fit += sum(fits)           
-        fit *= 0.5
-        fit += regularizedFit
-        fit += extendedFit
-        fit /= sumNormX 
-                
+        if iter > preheatnum:
+            for i in range(len(R)):
+                global ARk
+                ARk = dot(A, R[i])
+                global Xiglobal
+                Xiglobal = X[i]           
+                Xrow, Xcol = Xiglobal.nonzero()
+                fits = []
+                for rr in range(len(Xrow)):
+                    fits.append(fitNorm(Xrow[rr], Xcol[rr]))
+                fit += sum(fits)           
+            fit *= 0.5
+            fit += regularizedFit
+            fit += extendedFit
+            fit /= sumNormX 
+        else :
+            _log.debug('Preheating is going on. Only regularization fit values are being reported.')        
             
         toc = time.clock()
         exectimes.append( toc - tic )
@@ -209,7 +213,7 @@ def rescal(X, D, rank, **kwargs):
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
-        if iter > 1 and fitchange < conv:
+        if iter > preheatnum and fitchange < conv:
             break
     return A, R, fit, iter+1, array(exectimes), V
 
@@ -317,5 +321,5 @@ print '# of iterations: %d' % result[3]
 A = result[0]
 savetxt(outputEntities, A)
 V = result[5]
-savetxt(outputTerms, V)
+savetxt(outputTerms, V.T)
 
