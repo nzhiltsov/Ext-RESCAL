@@ -175,10 +175,14 @@ def rescal(X, D, rank, **kwargs):
                 regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
         
             extendedFit = 0
+            Drow, Dcol = D.nonzero()
+            fitDAV = 0
+            for ff in range(len(Drow)):
+                fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
             if lmbda != 0:
-                extendedFit += norm(D - dot(A, V))**2 + lmbda*(norm(V)**2)
+                extendedFit += fitDAV + lmbda*(norm(V)**2)
             else :
-                extendedFit += norm(D - dot(A, V))**2    
+                extendedFit += fitDAV    
         
             for i in range(len(R)):
                 ARk = dot(A, R[i])       
