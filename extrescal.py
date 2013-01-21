@@ -11,8 +11,8 @@ import fnmatch
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
 
-__DEF_MAXITER = 100
-__DEF_PREHEATNUM = 80
+__DEF_MAXITER = 50
+__DEF_PREHEATNUM = 40
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-5
@@ -20,9 +20,6 @@ __DEF_LMBDA = 0
 
 logging.basicConfig(filename='extrescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
-ARk = empty((1,1))
-Aglobal = empty((1,1))
-Xiglobal = empty((1,1))
 
 def rescal_with_random_restarts(X, D, rank, restarts=10, **kwargs):
     """
@@ -47,12 +44,12 @@ def squareFrobeniusNormOfSparse(M):
         norm += M[rows[i],cols[i]] ** 2
     return norm
 
-def fitNorm(row, col):   
+def fitNorm(row, col, Xi, ARk, A):   
     """
     Computes i,j element of the squared Frobenius norm of the fitting matrix
     """
-    ARAtValue = dot(ARk[row,:], Aglobal[col,:])
-    return (Xiglobal[row, col] - ARAtValue)**2
+    ARAtValue = dot(ARk[row,:], A[col,:])
+    return (Xi[row, col] - ARAtValue)**2
 
 def rescal(X, D, rank, **kwargs):
     """
@@ -158,8 +155,6 @@ def rescal(X, D, rank, **kwargs):
         tic = time.clock()
         
         A = __updateA(X, A, R, V, lmbda)
-        global Aglobal
-        Aglobal = A
         if proj:
             Q, A2 = qr(A)
             X2 = __projectSlices(X, Q)
@@ -170,46 +165,43 @@ def rescal(X, D, rank, **kwargs):
 
         V = __updateV(A, D, lmbda)
         # compute fit values
-        regularizedFit = 0
-        if lmbda != 0:
-            regRFit = 0 
-            for i in range(len(R)):
-                regRFit += norm(R[i])**2
-            regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
-        
-        extendedFit = 0
-        if lmbda != 0:
-            extendedFit += norm(D - dot(A, V))**2 + lmbda*(norm(V)**2)
-        else :
-            extendedFit += norm(D - dot(A, V))**2    
-        
         fit = 0
+        regularizedFit = 0
         if iter > preheatnum:
+            if lmbda != 0:
+                regRFit = 0 
+                for i in range(len(R)):
+                    regRFit += norm(R[i])**2
+                regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
+        
+            extendedFit = 0
+            if lmbda != 0:
+                extendedFit += norm(D - dot(A, V))**2 + lmbda*(norm(V)**2)
+            else :
+                extendedFit += norm(D - dot(A, V))**2    
+        
             for i in range(len(R)):
-                global ARk
-                ARk = dot(A, R[i])
-                global Xiglobal
-                Xiglobal = X[i]           
-                Xrow, Xcol = Xiglobal.nonzero()
+                ARk = dot(A, R[i])       
+                Xrow, Xcol = X[i].nonzero()
                 fits = []
                 for rr in range(len(Xrow)):
-                    fits.append(fitNorm(Xrow[rr], Xcol[rr]))
+                    fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
                 fit += sum(fits)           
             fit *= 0.5
             fit += regularizedFit
             fit += extendedFit
             fit /= sumNormX 
         else :
-            _log.debug('Preheating is going on. Only regularization fit values are being reported.')        
+            _log.debug('Preheating is going on.')        
             
         toc = time.clock()
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
         if lmbda != 0:
-            _log.debug('[%3d] approxFit: %.7f | regularized fit: %.7f | approxFit delta: %.7f | secs: %.5f' % (iter, 
+            _log.debug('[%3d] approxFit: %.20f | regularized fit: %.20f | approxFit delta: %.20f | secs: %.5f' % (iter, 
         fit, regularizedFit, fitchange, exectimes[-1]))
         else :
-            _log.debug('[%3d] approxFit: %.7f | approxFit delta: %.7f | secs: %.5f' % (iter, 
+            _log.debug('[%3d] approxFit: %.20f | approxFit delta: %.20f | secs: %.5f' % (iter, 
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
@@ -285,6 +277,7 @@ with open('./%s/entity-ids' % inputDir) as entityIds:
 print 'The number of entities: %d' % dim          
 
 numSlices = 0
+numNonzeroTensorEntries = 0
 X = []
 for file in os.listdir('./%s' % inputDir):
     if fnmatch.fnmatch(file, '*-rows'):
@@ -296,9 +289,11 @@ for file in os.listdir('./%s' % inputDir):
         if col.size == 1: 
             col = np.atleast_1d(col)
         Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
+        numNonzeroTensorEntries += row.size
         X.append(Xi)
         
 print 'The number of tensor slices: %d' % numSlices
+print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
 
 extDim = 0
 with open('./%s/words' % inputDir) as words:
@@ -312,10 +307,12 @@ if extRow.size == 1:
 extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
 if extCol.size == 1: 
     extCol = np.atleast_1d(extCol)
-D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.uint8).tocsr()        
+D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.uint8).tocsr()
+
+print 'The number of non-zero values in the additional matrix: %d' % extRow.size         
 
 result = rescal(X, D, numLatentComponents, init='random', lmbda=regularizationParam)
-print 'Objective function value: %.10f' % result[2]
+print 'Objective function value: %.30f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrices of latent embeddings
 A = result[0]

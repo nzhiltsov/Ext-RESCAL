@@ -11,8 +11,8 @@ import fnmatch
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
 
-__DEF_MAXITER = 100
-__DEF_PREHEATNUM = 80
+__DEF_MAXITER = 50
+__DEF_PREHEATNUM = 40
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-5
@@ -20,9 +20,6 @@ __DEF_LMBDA = 0
 
 logging.basicConfig(filename='rescal.log',filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
-ARk = empty((1,1))
-Aglobal = empty((1,1))
-Xiglobal = empty((1,1))
 
 def rescal_with_random_restarts(X, rank, restarts=10, **kwargs):
     """
@@ -47,12 +44,12 @@ def squareFrobeniusNormOfSparse(M):
         norm += M[rows[i],cols[i]] ** 2
     return norm
 
-def fitNorm(row, col):   
+def fitNorm(row, col, Xi, ARk, A):   
     """
     Computes i,j element of the squared Frobenius norm of the fitting matrix
     """
-    ARAtValue = dot(ARk[row,:], Aglobal[col,:])
-    return (Xiglobal[row, col] - ARAtValue)**2
+    ARAtValue = dot(ARk[row,:], A[col,:])
+    return (Xi[row, col] - ARAtValue)**2
 
 def rescal(X, rank, **kwargs):
     """
@@ -151,8 +148,6 @@ def rescal(X, rank, **kwargs):
         tic = time.clock()
         
         A = __updateA(X, A, R, lmbda)
-        global Aglobal
-        Aglobal = A
         if proj:
             Q, A2 = qr(A)
             X2 = __projectSlices(X, Q)
@@ -162,39 +157,36 @@ def rescal(X, rank, **kwargs):
 #            R = __updateR(X, A, lmbda)
 
         # compute fit values
-        regularizedFit = 0
-        if lmbda != 0:
-            regRFit = 0 
-            for i in range(len(R)):
-                regRFit += norm(R[i])**2
-            regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
-            
         fit = 0
+        regularizedFit = 0
         if iter > preheatnum:
+            if lmbda != 0:
+                regRFit = 0 
+                for i in range(len(R)):
+                    regRFit += norm(R[i])**2
+                regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
+            
             for i in range(len(R)):
-                global ARk
-                ARk = dot(A, R[i])
-                global Xiglobal
-                Xiglobal = X[i]           
-                Xrow, Xcol = Xiglobal.nonzero()
+                ARk = dot(A, R[i])           
+                Xrow, Xcol = X[i].nonzero()
                 fits = []
                 for rr in range(len(Xrow)):
-                    fits.append(fitNorm(Xrow[rr], Xcol[rr]))
+                    fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
                     fit += sum(fits)           
                 fit *= 0.5
                 fit += regularizedFit
                 fit /= sumNormX 
         else :
-            _log.debug('Preheating is going on. Only regularization fit values are being reported.')        
+            _log.debug('Preheating is going on.')        
             
         toc = time.clock()
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
         if lmbda != 0:
-            _log.debug('[%3d] approxFit: %.7f | regularized fit: %.7f | approxFit delta: %.7f | secs: %.5f' % (iter, 
+            _log.debug('[%3d] approxFit: %.20f | regularized fit: %.20f | approxFit delta: %.20f | secs: %.5f' % (iter, 
         fit, regularizedFit, fitchange, exectimes[-1]))
         else :
-            _log.debug('[%3d] approxFit: %.7f | approxFit delta: %.7f | secs: %.5f' % (iter, 
+            _log.debug('[%3d] approxFit: %.20f | approxFit delta: %.20f | secs: %.5f' % (iter, 
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
@@ -273,7 +265,7 @@ for file in os.listdir('./%s' % inputDir):
 print 'The number of slices: %d' % numSlices
 
 result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
-print 'Objective function value: %.10f' % result[2]
+print 'Objective function value: %.20f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings
 A = result[0]
