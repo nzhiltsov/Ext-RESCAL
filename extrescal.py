@@ -11,8 +11,8 @@ import fnmatch
 __version__ = "0.1" 
 __all__ = ['rescal', 'rescal_with_random_restarts']
 
-__DEF_MAXITER = 50
-__DEF_PREHEATNUM = 40
+__DEF_MAXITER = 100
+__DEF_PREHEATNUM = 1
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-5
@@ -172,17 +172,14 @@ def rescal(X, D, rank, **kwargs):
                 regRFit = 0 
                 for i in range(len(R)):
                     regRFit += norm(R[i])**2
-                regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
+                regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit + lmbda*(norm(V)**2)
         
             extendedFit = 0
             Drow, Dcol = D.nonzero()
             fitDAV = 0
             for ff in range(len(Drow)):
                 fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
-            if lmbda != 0:
-                extendedFit += fitDAV + lmbda*(norm(V)**2)
-            else :
-                extendedFit += fitDAV    
+                extendedFit += fitDAV
         
             for i in range(len(R)):
                 ARk = dot(A, R[i])       
@@ -284,7 +281,7 @@ numSlices = 0
 numNonzeroTensorEntries = 0
 X = []
 for file in os.listdir('./%s' % inputDir):
-    if fnmatch.fnmatch(file, '*-rows'):
+    if fnmatch.fnmatch(file, '[0-9]*-rows'):
         numSlices += 1
         row = loadtxt('./%s/%s' % (inputDir, file), dtype=np.int32)
         if row.size == 1: 

@@ -251,7 +251,7 @@ print 'The number of entities: %d' % dim
 numSlices = 0
 X = []
 for file in os.listdir('./%s' % inputDir):
-    if fnmatch.fnmatch(file, '*-rows'):
+    if fnmatch.fnmatch(file, '[0-9]*-rows'):
         numSlices += 1
         row = loadtxt('./%s/%s' % (inputDir, file), dtype=np.int32)
         if row.size == 1: 
