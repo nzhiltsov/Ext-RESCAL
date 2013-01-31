@@ -8,6 +8,7 @@ import numpy as np
 import os
 import fnmatch
 from commonFunctions import squareFrobeniusNormOfSparse
+from extrescalFunctions import updateA, updateV
 
 __version__ = "0.1" 
 
@@ -19,7 +20,6 @@ __DEF_CONV = 1e-6
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
 
-
 def fitNorm(row, col, Xi, ARk, A):   
     """
     Computes i,j element of the squared Frobenius norm of the fitting matrix
@@ -27,7 +27,7 @@ def fitNorm(row, col, Xi, ARk, A):
     ARAtValue = dot(ARk[row,:], A[col,:])
     return (Xi[row, col] - ARAtValue)**2
 
-def rescal(X, rank, **kwargs):
+def rescal(X, D, rank, **kwargs):
     """
     RESCAL 
 
@@ -45,6 +45,9 @@ def rescal(X, rank, **kwargs):
     ----------
     X : list
         List of frontal slices X_k of the tensor X. The shape of each X_k is ('N', 'N')
+    D : matrix
+        A sparse matrix involved in the tensor factorization (aims to incorporate
+        the entity-term matrix aka document-term matrix)
     rank : int 
         Rank of the factorization
     lmbda : float, optional 
@@ -62,7 +65,7 @@ def rescal(X, rank, **kwargs):
         Stop when residual of factorization is less than conv. 1e-5 by default
     exactfit: boolean, optional
         Whether or not to compute the exact fitting value
-        False by default (i.e., approximate the norm by non-zero values of the targeting tensor)    
+        False by default (i.e., approximate the norm by non-zero values of the targeting matrix/tensor)
 
     Returns 
     -------
@@ -98,7 +101,7 @@ def rescal(X, rank, **kwargs):
     _log.debug('[Config] rank: %d | maxIter: %d | conv: %7.1e | lmbda: %7.1e' % (rank, 
         maxIter, conv, lmbda))
     _log.debug('[Config] dtype: %s' % dtype)
-    
+        
     if exactfit:
         _log.debug('[Config] The exact fit values will be computed during optimization.')
     else:
@@ -108,11 +111,10 @@ def rescal(X, rank, **kwargs):
     normX = [squareFrobeniusNormOfSparse(M) for M in X]
     sumNormX = sum(normX)
     _log.debug('[Algorithm] The tensor norm: %.5f' % sumNormX)
-    
     # initialize A
     A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
-        A = array(rand(n, rank), dtype=np.float64)    
+        A = array(rand(n, rank), dtype=np.float64)
     else :
         raise 'This type of initialization is not supported, please use random'
 
@@ -123,7 +125,11 @@ def rescal(X, rank, **kwargs):
         R = __updateR(X2, A2, lmbda)
     else :
         raise 'Projection via QR decomposition is required; pass proj=true'
-
+    
+    # initialize V
+    Drow, Dcol = D.shape
+    V = array(rand(rank, Dcol), dtype=np.float64)
+    
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
@@ -131,7 +137,7 @@ def rescal(X, rank, **kwargs):
     for iter in xrange(maxIter):
         tic = time.clock()
         
-        A = updateA(X, A, R, lmbda)
+        A = updateA(X, A, R, V, D, lmbda)
         if proj:
             Q, A2 = qr(A)
             X2 = __projectSlices(X, Q)
@@ -140,30 +146,41 @@ def rescal(X, rank, **kwargs):
             raise 'Projection via QR decomposition is required; pass proj=true'
 #            R = __updateR(X, A, lmbda)
 
+        V = updateV(A, D, lmbda)
         # compute fit values
         fit = 0
         regularizedFit = 0
-        regRFit = 0 
+        regRFit = 0
+        fitDAV = 0
         if iter > preheatnum:
-            if lmbda != 0:   
+            if lmbda != 0:
                 for i in range(len(R)):
                     regRFit += norm(R[i])**2
-                regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
+                regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit + lmbda*(norm(V)**2)
+        
+            if exactfit:
+                fitDAV = norm(D - dot(A,V))**2
+            else :                      
+                Drow, Dcol = D.nonzero()
+                for ff in range(len(Drow)):
+                    fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
             
             if exactfit:
                 for i in range(len(R)):
                     fit = norm(X[i] - dot(A,dot(R[i], A.T)))**2
             else :
                 for i in range(len(R)):
-                    ARk = dot(A, R[i])           
+                    ARk = dot(A, R[i])       
                     Xrow, Xcol = X[i].nonzero()
                     fits = []
                     for rr in range(len(Xrow)):
                         fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
-                        fit = sum(fits)           
-                    fit *= 0.5
-                    fit += regularizedFit
-                    fit /= sumNormX 
+                    fit = sum(fits)           
+            
+            fit *= 0.5
+            fit += regularizedFit
+            fit += fitDAV
+            fit /= sumNormX 
         else :
             _log.debug('[Algorithm] Preheating is going on.')        
             
@@ -171,30 +188,16 @@ def rescal(X, rank, **kwargs):
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
         if lmbda != 0:
-            _log.debug('[%3d] totalFit: %.20f | regularized fit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
-        fit, regularizedFit, fitchange, exectimes[-1]))
+            _log.debug('[%3d] totalFit: %.20f | regularized fit: %.20f | extended fit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
+        fit, regularizedFit, fitDAV, fitchange, exectimes[-1]))
         else :
-            _log.debug('[%3d] totalFit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
-        fit, fitchange, exectimes[-1]))
+            _log.debug('[%3d] totalFit: %.20f | extended fit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
+        fit, fitDAV, fitchange, exectimes[-1]))
             
         fitold = fit
         if iter > preheatnum and fitchange < conv:
             break
-    return A, R, fit, iter+1, array(exectimes)
-
-def updateA(X, A, R, lmbda):
-    n, rank = A.shape
-    F = zeros((n,rank))
-    E = zeros((rank, rank), dtype=np.float64)
-
-    AtA = dot(A.T, A)
-    for i in range(len(X)):
-        ar = dot(A, R[i])
-        art = dot(A, R[i].T)
-        F += X[i].dot(art) + X[i].T.dot(ar)
-        E += dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
-    A = dot(F, inv(lmbda * eye(rank) + E))
-    return A
+    return A, R, fit, iter+1, array(exectimes), V
 
 def __updateR(X, A, lmbda):
     r = A.shape[1]
@@ -211,6 +214,7 @@ def __updateR(X, A, lmbda):
             AtXA = dot(At, X[i].dot(A)) 
             R.append( dot(AtXA.flatten(), tmp).reshape(r, r) )
     return R
+        
 
 def __projectSlices(X, Q):
     q = Q.shape[1]
@@ -224,16 +228,19 @@ parser.add_argument("--latent", type=int, help="number of latent components", re
 parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
+parser.add_argument("--outputterms", type=str, help="the file, where the latent embedding for terms will be output", required=True)
 parser.add_argument("--log", type=str, help="log file", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
 inputDir = args.input
 regularizationParam = args.lmbda
 outputEntities = args.outputentities
+outputTerms = args.outputterms
 logFile = args.log
 
 logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
 _log = logging.getLogger('RESCAL') 
+
 
 dim = 0
 with open('./%s/entity-ids' % inputDir) as entityIds:
@@ -260,10 +267,28 @@ for file in os.listdir('./%s' % inputDir):
 print 'The number of tensor slices: %d' % numSlices
 print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
 
-result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
+extDim = 0
+with open('./%s/words' % inputDir) as words:
+    for line in words:
+          extDim += 1
+print 'The number of words: %d' % extDim
+
+extRow = loadtxt('./%s/ext-matrix-rows' % inputDir, dtype=np.int32)
+if extRow.size == 1: 
+    extRow = np.atleast_1d(extRow)
+extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
+if extCol.size == 1: 
+    extCol = np.atleast_1d(extCol)
+D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.uint8).tocsr()
+
+print 'The number of non-zero values in the additional matrix: %d' % extRow.size         
+
+result = rescal(X, D, numLatentComponents, init='random', lmbda=regularizationParam)
 print 'Objective function value: %.30f' % result[2]
 print '# of iterations: %d' % result[3] 
-#print the matrix of latent embeddings
+#print the matrices of latent embeddings
 A = result[0]
 savetxt(outputEntities, A)
+V = result[5]
+savetxt(outputTerms, V.T)
 
