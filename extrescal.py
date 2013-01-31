@@ -7,42 +7,18 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
+from commonFunctions import squareFrobeniusNormOfSparse
+from extrescalFunctions import updateA, updateV
 
 __version__ = "0.1" 
-__all__ = ['rescal', 'rescal_with_random_restarts']
 
 __DEF_MAXITER = 100
 __DEF_PREHEATNUM = 1
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-5
+__DEF_CONV = 1e-6
 __DEF_LMBDA = 0
-
-logging.basicConfig(filename='extrescal.log',filemode='w', level=logging.DEBUG)
-_log = logging.getLogger('RESCAL') 
-
-def rescal_with_random_restarts(X, D, rank, restarts=10, **kwargs):
-    """
-    Restarts RESCAL multiple time from random starting point and 
-    returns factorization with best fit.
-    """
-    models = []
-    fits = []
-    for i in range(restarts):
-        res = rescal(X, D, rank, **kwargs)
-        models.append(res)
-        fits.append(res[2])
-    return models[argmin(fits)]
-
-def squareFrobeniusNormOfSparse(M):
-    """
-    Computes the square of the Frobenius norm
-    """
-    rows, cols = M.nonzero()
-    norm = 0
-    for i in range(len(rows)):
-        norm += M[rows[i],cols[i]] ** 2
-    return norm
+__DEF_EXACT_FIT = False
 
 def fitNorm(row, col, Xi, ARk, A):   
     """
@@ -87,6 +63,9 @@ def rescal(X, D, rank, **kwargs):
         Maximium number of iterations of the ALS algorithm. 500 by default. 
     conv : float, optional 
         Stop when residual of factorization is less than conv. 1e-5 by default
+    exactfit: boolean, optional
+        Whether or not to compute the exact fitting value
+        False by default (i.e., approximate the norm by non-zero values of the targeting matrix/tensor)
 
     Returns 
     -------
@@ -109,6 +88,7 @@ def rescal(X, D, rank, **kwargs):
     conv = kwargs.pop('conv', __DEF_CONV)
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
     preheatnum = kwargs.pop('preheatnum', __DEF_PREHEATNUM)
+    exactfit = kwargs.pop('exactfit', __DEF_EXACT_FIT)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -121,12 +101,16 @@ def rescal(X, D, rank, **kwargs):
     _log.debug('[Config] rank: %d | maxIter: %d | conv: %7.1e | lmbda: %7.1e' % (rank, 
         maxIter, conv, lmbda))
     _log.debug('[Config] dtype: %s' % dtype)
+        
+    if exactfit:
+        _log.debug('[Config] The exact fit values will be computed during optimization.')
+    else:
+        _log.debug('[Config] The approximating fit values will be computed during optimization.')
     
     # precompute norms of X 
     normX = [squareFrobeniusNormOfSparse(M) for M in X]
-    _log.debug('[Config] finished precomputing norms')
     sumNormX = sum(normX)
-    
+    _log.debug('[Algorithm] The tensor norm: %.5f' % sumNormX)
     # initialize A
     A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
@@ -141,7 +125,6 @@ def rescal(X, D, rank, **kwargs):
         R = __updateR(X2, A2, lmbda)
     else :
         raise 'Projection via QR decomposition is required; pass proj=true'
-#        R = __updateR(X, A, lmbda)
     
     # initialize V
     Drow, Dcol = D.shape
@@ -154,7 +137,7 @@ def rescal(X, D, rank, **kwargs):
     for iter in xrange(maxIter):
         tic = time.clock()
         
-        A = __updateA(X, A, R, V, lmbda)
+        A = updateA(X, A, R, V, D, lmbda)
         if proj:
             Q, A2 = qr(A)
             X2 = __projectSlices(X, Q)
@@ -163,66 +146,58 @@ def rescal(X, D, rank, **kwargs):
             raise 'Projection via QR decomposition is required; pass proj=true'
 #            R = __updateR(X, A, lmbda)
 
-        V = __updateV(A, D, lmbda)
+        V = updateV(A, D, lmbda)
         # compute fit values
         fit = 0
         regularizedFit = 0
+        regRFit = 0
+        fitDAV = 0
         if iter > preheatnum:
             if lmbda != 0:
-                regRFit = 0 
                 for i in range(len(R)):
                     regRFit += norm(R[i])**2
                 regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit + lmbda*(norm(V)**2)
         
-            extendedFit = 0
-            Drow, Dcol = D.nonzero()
-            fitDAV = 0
-            for ff in range(len(Drow)):
-                fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
-                extendedFit += fitDAV
-        
-            for i in range(len(R)):
-                ARk = dot(A, R[i])       
-                Xrow, Xcol = X[i].nonzero()
-                fits = []
-                for rr in range(len(Xrow)):
-                    fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
-                fit += sum(fits)           
+            if exactfit:
+                fitDAV = norm(D - dot(A,V))**2
+            else :                      
+                Drow, Dcol = D.nonzero()
+                for ff in range(len(Drow)):
+                    fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
+            
+            if exactfit:
+                for i in range(len(R)):
+                    fit = norm(X[i] - dot(A,dot(R[i], A.T)))**2
+            else :
+                for i in range(len(R)):
+                    ARk = dot(A, R[i])       
+                    Xrow, Xcol = X[i].nonzero()
+                    fits = []
+                    for rr in range(len(Xrow)):
+                        fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
+                    fit = sum(fits)           
+            
             fit *= 0.5
             fit += regularizedFit
-            fit += extendedFit
+            fit += fitDAV
             fit /= sumNormX 
         else :
-            _log.debug('Preheating is going on.')        
+            _log.debug('[Algorithm] Preheating is going on.')        
             
         toc = time.clock()
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
         if lmbda != 0:
-            _log.debug('[%3d] approxFit: %.20f | regularized fit: %.20f | approxFit delta: %.20f | secs: %.5f' % (iter, 
-        fit, regularizedFit, fitchange, exectimes[-1]))
+            _log.debug('[%3d] totalFit: %.20f | regularized fit: %.20f | extended fit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
+        fit, regularizedFit, fitDAV, fitchange, exectimes[-1]))
         else :
-            _log.debug('[%3d] approxFit: %.20f | approxFit delta: %.20f | secs: %.5f' % (iter, 
-        fit, fitchange, exectimes[-1]))
+            _log.debug('[%3d] totalFit: %.20f | extended fit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
+        fit, fitDAV, fitchange, exectimes[-1]))
             
         fitold = fit
         if iter > preheatnum and fitchange < conv:
             break
     return A, R, fit, iter+1, array(exectimes), V
-
-def __updateA(X, A, R, V, lmbda):
-    n, rank = A.shape
-    F = zeros((n,rank))
-    E = zeros((rank, rank), dtype=np.float64)
-
-    AtA = dot(A.T, A)
-    for i in range(len(X)):
-        ar = dot(A, R[i])
-        art = dot(A, R[i].T)
-        F = F + X[i].dot(art) + X[i].T.dot(ar) + D.dot(V.T)
-        E = E + dot(R[i], dot(AtA, R[i].T)) + dot(R[i].T, dot(AtA, R[i]))
-    A = dot(F, inv(lmbda * eye(rank) + E + dot(V, V.T)))
-    return A
 
 def __updateR(X, A, lmbda):
     r = A.shape[1]
@@ -239,16 +214,6 @@ def __updateR(X, A, lmbda):
             AtXA = dot(At, X[i].dot(A)) 
             R.append( dot(AtXA.flatten(), tmp).reshape(r, r) )
     return R
-
-def __updateV(A, D, lmbda):
-    n, rank = A.shape    
-    At = A.T
-    invPart = empty((1, 1))
-    if lmbda == 0:
-        invPart = inv(dot(At, A))
-    else :
-        invPart = inv(dot(At, A) + lmbda * eye(rank))
-    return dot(invPart, At) * D
         
 
 def __projectSlices(X, Q):
@@ -264,12 +229,18 @@ parser.add_argument("--lmbda", type=float, help="regularization parameter", requ
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
 parser.add_argument("--outputterms", type=str, help="the file, where the latent embedding for terms will be output", required=True)
+parser.add_argument("--log", type=str, help="log file", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
 inputDir = args.input
 regularizationParam = args.lmbda
 outputEntities = args.outputentities
 outputTerms = args.outputterms
+logFile = args.log
+
+logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
+_log = logging.getLogger('RESCAL') 
+
 
 dim = 0
 with open('./%s/entity-ids' % inputDir) as entityIds:
