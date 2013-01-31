@@ -56,7 +56,7 @@ The original algorithms are an intellectual property of the authors of the cited
 Development and Contribution
 ----------------------
 
-This is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL has been developed by [Nikita Zhiltsov](http://cll.niimm.ksu.ru/~nzhiltsov). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests.
+This is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL has been developed by [Nikita Zhiltsov](http://cll.niimm.ksu.ru/cms/lang/en_US/main/people/zhiltsov). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests.
 
 
 Disclaimer
