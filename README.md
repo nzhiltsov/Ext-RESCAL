@@ -8,13 +8,13 @@ Ext-RESCAL is a memory efficient implementation of the [RESCAL algorithm](http:/
 
 Current Version
 ------------
-0.1
+[0.1.1](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.1.1.zip)
 
 Features
 ------------
 
-* 3-D tensor factorization [1]
-* Joint 3-D tensor and 2-D matrix factorization (extended version) [2]
+* 3-D sparse tensor factorization [1]
+* Joint 3-D sparse tensor and 2-D sparse matrix factorization (extended version) [2]
 * The implementation scales well to the domains with millions of nodes on the affordable hardware
 * Handy input format
 
