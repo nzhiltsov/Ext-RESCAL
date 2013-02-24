@@ -26,3 +26,8 @@ def updateV(A, D, lmbda):
         invPart = inv(dot(At, A) + lmbda * eye(rank))
     return dot(invPart, At) * D
 
+def matrixFitNormElement(i, j, D, A, V):
+    """
+    Computes i,j element of the fitting matrix Frobenius norm ||D - A*V||
+    """ 
+    return (D[i,j] - dot(A[i,:], V[:, j]))**2

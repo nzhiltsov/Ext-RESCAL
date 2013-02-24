@@ -8,7 +8,7 @@ import numpy as np
 import os
 import fnmatch
 from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
-from extrescalFunctions import updateA, updateV
+from extrescalFunctions import updateA, updateV, matrixFitNormElement
 
 __version__ = "0.1" 
 
@@ -161,7 +161,7 @@ def rescal(X, D, rank, **kwargs):
             else :                      
                 Drow, Dcol = D.nonzero()
                 for ff in xrange(len(Drow)):
-                    fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
+                    fitDAV += matrixFitNormElement(Drow[ff], Dcol[ff], D, A, V)
             
             if exactfit:
                 for i in xrange(len(R)):
@@ -170,10 +170,8 @@ def rescal(X, D, rank, **kwargs):
                 for i in xrange(len(R)):
                     ARk = dot(A, R[i])       
                     Xrow, Xcol = X[i].nonzero()
-                    fits = []
                     for rr in xrange(len(Xrow)):
-                        fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
-                    tensorFit = sum(fits)           
+                        tensorFit += fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A)           
             
             fit = 0.5*tensorFit
             fit += regularizedFit

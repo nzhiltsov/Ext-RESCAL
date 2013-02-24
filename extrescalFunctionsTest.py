@@ -1,9 +1,10 @@
 from scipy.sparse import coo_matrix
 from numpy import ones, dot, eye
 import numpy as np
-from extrescalFunctions import updateA, updateV
+from extrescalFunctions import updateA, updateV, matrixFitNormElement
 from nose.tools import assert_almost_equal
 from numpy.linalg import inv
+from numpy.linalg.linalg import norm
 
 def testUpdateA():
     A = np.array([[0.1, 0.1, 0.1],
@@ -59,5 +60,24 @@ def testUpdateV():
     for i in range(3):
         for j in range(4):
             assert_almost_equal(newV[i,j], expectedNewV[i, j])
-    
+
+def testMatrixFitNorm():
+    A = np.array([[0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1]])
+    V = np.array([[0.1, 0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1, 0.1],
+         [0.1, 0.1, 0.1, 0.1]])
+    D = coo_matrix((ones(6),([0, 1, 2, 3, 4, 5], [0, 1, 1, 2, 3, 3])), shape=(6, 4), dtype=np.uint8).tocsr()
+    DrowNum, DcolNum = D.shape
+    expectedNorm = norm(D - dot(A,V))**2
+    fit = 0
+    for i in xrange(DrowNum):
+        for j in xrange(DcolNum):
+            fit += matrixFitNormElement(i, j, D, A, V)
+    assert_almost_equal(fit, expectedNorm)
+        
     
