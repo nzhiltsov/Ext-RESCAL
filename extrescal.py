@@ -122,8 +122,8 @@ def rescal(X, D, rank, **kwargs):
         raise 'Projection via QR decomposition is required; pass proj=true'
     
     # initialize V
-    Drow, Dcol = D.shape
-    V = array(rand(rank, Dcol), dtype=np.float64)
+    DrowSize, DcolSize = D.shape
+    V = array(rand(rank, DcolSize), dtype=np.float64)
     
     # compute factorization
     fit = fitchange = fitold = 0
@@ -165,7 +165,7 @@ def rescal(X, D, rank, **kwargs):
             
             if exactfit:
                 for i in xrange(len(R)):
-                    tensorFit = norm(X[i] - dot(A,dot(R[i], A.T)))**2
+                    tensorFit += norm(X[i] - dot(A,dot(R[i], A.T)))**2
             else :
                 for i in xrange(len(R)):
                     ARk = dot(A, R[i])       
