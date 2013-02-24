@@ -11,11 +11,11 @@ from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
 
 __version__ = "0.1" 
 
-__DEF_MAXITER = 100
+__DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-6
+__DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
 
@@ -138,35 +138,29 @@ def rescal(X, rank, **kwargs):
         regRFit = 0 
         if iter > preheatnum:
             if lmbda != 0:   
-                for i in range(len(R)):
+                for i in xrange(len(R)):
                     regRFit += norm(R[i])**2
                 regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
             
             if exactfit:
-                for i in range(len(R)):
+                for i in xrange(len(R)):
                     fit = norm(X[i] - dot(A,dot(R[i], A.T)))**2
             else :
-                for i in range(len(R)):
+                for i in xrange(len(R)):
                     ARk = dot(A, R[i])           
                     Xrow, Xcol = X[i].nonzero()
-                    fits = []
-                    for rr in range(len(Xrow)):
-                        fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
-                        fit = sum(fits)           
-                    fit *= 0.5
-                    fit += regularizedFit
-                    fit /= sumNormX 
+                    for rr in xrange(len(Xrow)):
+                        fit += fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A)
+            fit *= 0.5
+            fit += regularizedFit
+            fit /= sumNormX 
         else :
             _log.debug('[Algorithm] Preheating is going on.')        
             
         toc = time.clock()
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
-        if lmbda != 0:
-            _log.debug('[%3d] totalFit: %.20f | regularized fit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
-        fit, regularizedFit, fitchange, exectimes[-1]))
-        else :
-            _log.debug('[%3d] totalFit: %.20f | delta: %.20f | secs: %.5f' % (iter, 
+        _log.debug('[%3d] total fit: %.10f | delta: %.10f | secs: %.5f' % (iter, 
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
@@ -180,7 +174,7 @@ def updateA(X, A, R, lmbda):
     E = zeros((rank, rank), dtype=np.float64)
 
     AtA = dot(A.T, A)
-    for i in range(len(X)):
+    for i in xrange(len(X)):
         ar = dot(A, R[i])
         art = dot(A, R[i].T)
         F += X[i].dot(art) + X[i].T.dot(ar)
@@ -194,12 +188,12 @@ def __updateR(X, A, lmbda):
     At = A.T    
     if lmbda == 0:
         ainv = dot(pinv(dot(At, A)), At)
-        for i in range(len(X)):
+        for i in xrange(len(X)):
             R.append( dot(ainv, X[i].dot(ainv.T)) )
     else :
         AtA = dot(At, A)
         tmp = inv(kron(AtA, AtA) + lmbda * eye(r**2))
-        for i in range(len(X)):
+        for i in xrange(len(X)):
             AtXA = dot(At, X[i].dot(A)) 
             R.append( dot(AtXA.flatten(), tmp).reshape(r, r) )
     return R
@@ -207,7 +201,7 @@ def __updateR(X, A, lmbda):
 def __projectSlices(X, Q):
     q = Q.shape[1]
     X2 = []
-    for i in range(len(X)):
+    for i in xrange(len(X)):
         X2.append( dot(Q.T, X[i].dot(Q)) )
     return X2
 
