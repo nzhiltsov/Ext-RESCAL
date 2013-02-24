@@ -4,11 +4,11 @@ Ext-RESCAL
 Scalable Tensor Factorization
 ------------------------------
 
-Ext-RESCAL is a memory efficient implementation of the [RESCAL algorithm](http://www.cip.ifi.lmu.de/~nickel/). It is written in Python and relies on the SciPy Sparse module.
+Ext-RESCAL is a memory efficient implementation of the [RESCAL algorithm](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf). It is written in Python and relies on the SciPy Sparse module.
 
 Current Version
 ------------
-[0.1.1](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.1.1.zip)
+[0.1.2](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.1.2.zip)
 
 Features
 ------------
