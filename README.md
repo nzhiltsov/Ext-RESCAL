@@ -8,7 +8,7 @@ Ext-RESCAL is a memory efficient implementation of the [RESCAL algorithm](http:/
 
 Current Version
 ------------
-[0.1.2](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.1.2.zip)
+[0.1.3](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.1.3.zip)
 
 Features
 ------------
