@@ -16,7 +16,7 @@ __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-6
+__DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
 
