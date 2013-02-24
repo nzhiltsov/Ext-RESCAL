@@ -7,8 +7,8 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse
-from extrescalFunctions import updateA, updateV
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
+from extrescalFunctions import updateA, updateV, matrixFitNormElement
 
 __version__ = "0.1" 
 
@@ -16,16 +16,9 @@ __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
 __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
-__DEF_CONV = 1e-6
+__DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
-
-def fitNorm(row, col, Xi, ARk, A):   
-    """
-    Computes i,j element of the squared Frobenius norm of the fitting matrix
-    """
-    ARAtValue = dot(ARk[row,:], A[col,:])
-    return (Xi[row, col] - ARAtValue)**2
 
 def rescal(X, D, rank, **kwargs):
     """
@@ -129,8 +122,8 @@ def rescal(X, D, rank, **kwargs):
         raise 'Projection via QR decomposition is required; pass proj=true'
     
     # initialize V
-    Drow, Dcol = D.shape
-    V = array(rand(rank, Dcol), dtype=np.float64)
+    DrowSize, DcolSize = D.shape
+    V = array(rand(rank, DcolSize), dtype=np.float64)
     
     # compute factorization
     fit = fitchange = fitold = 0
@@ -158,7 +151,7 @@ def rescal(X, D, rank, **kwargs):
         fitDAV = 0
         if iter > preheatnum:
             if lmbda != 0:
-                for i in range(len(R)):
+                for i in xrange(len(R)):
                     regRFit += norm(R[i])**2
                 regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
             if lmbda != 0: 
@@ -167,20 +160,18 @@ def rescal(X, D, rank, **kwargs):
                 fitDAV = norm(D - dot(A,V))**2
             else :                      
                 Drow, Dcol = D.nonzero()
-                for ff in range(len(Drow)):
-                    fitDAV += (D[Drow[ff],Dcol[ff]] - dot(A[Drow[ff],:], V[:, Dcol[ff]]))**2
+                for ff in xrange(len(Drow)):
+                    fitDAV += matrixFitNormElement(Drow[ff], Dcol[ff], D, A, V)
             
             if exactfit:
-                for i in range(len(R)):
-                    tensorFit = norm(X[i] - dot(A,dot(R[i], A.T)))**2
+                for i in xrange(len(R)):
+                    tensorFit += norm(X[i] - dot(A,dot(R[i], A.T)))**2
             else :
-                for i in range(len(R)):
+                for i in xrange(len(R)):
                     ARk = dot(A, R[i])       
                     Xrow, Xcol = X[i].nonzero()
-                    fits = []
-                    for rr in range(len(Xrow)):
-                        fits.append(fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A))
-                    tensorFit = sum(fits)           
+                    for rr in xrange(len(Xrow)):
+                        tensorFit += fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A)           
             
             fit = 0.5*tensorFit
             fit += regularizedFit
@@ -207,12 +198,12 @@ def __updateR(X, A, lmbda):
     At = A.T    
     if lmbda == 0:
         ainv = dot(pinv(dot(At, A)), At)
-        for i in range(len(X)):
+        for i in xrange(len(X)):
             R.append( dot(ainv, X[i].dot(ainv.T)) )
     else :
         AtA = dot(At, A)
         tmp = inv(kron(AtA, AtA) + lmbda * eye(r**2))
-        for i in range(len(X)):
+        for i in xrange(len(X)):
             AtXA = dot(At, X[i].dot(A)) 
             R.append( dot(AtXA.flatten(), tmp).reshape(r, r) )
     return R
@@ -221,7 +212,7 @@ def __updateR(X, A, lmbda):
 def __projectSlices(X, Q):
     q = Q.shape[1]
     X2 = []
-    for i in range(len(X)):
+    for i in xrange(len(X)):
         X2.append( dot(Q.T, X[i].dot(Q)) )
     return X2
 

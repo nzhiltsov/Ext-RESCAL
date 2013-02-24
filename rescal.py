@@ -7,7 +7,7 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
 
 __version__ = "0.1" 
 
@@ -18,14 +18,6 @@ __DEF_PROJ = True
 __DEF_CONV = 1e-6
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
-
-
-def fitNorm(row, col, Xi, ARk, A):   
-    """
-    Computes i,j element of the squared Frobenius norm of the fitting matrix
-    """
-    ARAtValue = dot(ARk[row,:], A[col,:])
-    return (Xi[row, col] - ARAtValue)**2
 
 def rescal(X, rank, **kwargs):
     """
