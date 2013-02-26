@@ -4,18 +4,18 @@ Ext-RESCAL
 Scalable Tensor Factorization
 ------------------------------
 
-Ext-RESCAL is a memory efficient implementation of the [RESCAL algorithm](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf). It is written in Python and relies on the SciPy Sparse module.
+Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf), a state-of-the-art algorithm for DEDICOM tensor factorization. Ext-RESCAL is written in Python and relies on the SciPy Sparse module.
 
 Current Version
 ------------
-[0.1.3](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.1.3.zip)
+[0.2](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.2.zip)
 
 Features
 ------------
 
 * 3-D sparse tensor factorization [1]
 * Joint 3-D sparse tensor and 2-D sparse matrix factorization (extended version) [2]
-* The implementation scales well to the domains with millions of nodes on the affordable hardware
+* The implementation provably scales well to the domains with millions of nodes on the affordable hardware
 * Handy input format
 
 [1] M. Nickel, V. Tresp, H. Kriegel. A Three-way Model for Collective Learning on Multi-relational Data // Proceedings of the 28th International Conference on Machine Learning (ICML'2011). - 2011. 
@@ -47,17 +47,28 @@ The test data set represents a tiny entity graph of 3 adjacency matrices (tensor
 
 <pre>python extrescal.py --latent 2 --lmbda 0.001 --input tiny-mixed-example --outputentities entity.embeddings.csv --outputterms term.embeddings.csv --log extrescal.log</pre>
 
+Development and Contribution
+----------------------
+
+This is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL has been developed by [Nikita Zhiltsov](http://cll.niimm.ksu.ru/cms/lang/en_US/main/people/zhiltsov). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests into the _develop_ branch.
+
+
+Release Notes
+------------
+0.2 (February 26, 2013): 
+
+* Add an opportunity to approximate the objective function via random sampling
+* Bug fixes
+* Change the default settings
+
+0.1 (January 31, 2013):
+
+* The basic implementation of both the algorithms
 
 Credit
 ----------------------
 
 The original algorithms are an intellectual property of the authors of the cited papers.
-
-Development and Contribution
-----------------------
-
-This is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL has been developed by [Nikita Zhiltsov](http://cll.niimm.ksu.ru/cms/lang/en_US/main/people/zhiltsov). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests.
-
 
 Disclaimer
 ---------------------
