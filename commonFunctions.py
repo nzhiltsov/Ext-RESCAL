@@ -1,4 +1,6 @@
 from numpy import dot
+from numpy.random import randint
+from itertools import ifilter
 
 def squareFrobeniusNormOfSparse(M):
     """
@@ -16,3 +18,11 @@ def fitNorm(row, col, Xi, ARk, A):
     """
     ARAtValue = dot(ARk[row,:], A[col,:])
     return (Xi[row, col] - ARAtValue)**2
+
+def reservoir(it, k):
+    ls = [next(it) for _ in range(k)]
+    for i, x in enumerate(it, k + 1):
+        j = randint(0, i)
+        if j < k:
+            ls[j] = x
+    return ls  

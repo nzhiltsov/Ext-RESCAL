@@ -1,5 +1,5 @@
 import logging, time, argparse
-from numpy import dot, zeros, empty, kron, array, eye, argmin, ones, savetxt, loadtxt
+from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
 from scipy import sparse
@@ -8,9 +8,7 @@ import numpy as np
 import os
 import fnmatch
 from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
-from extrescalFunctions import updateA, updateV, matrixFitNormElement
-
-__version__ = "0.1" 
+from extrescalFunctions import updateA, updateV, matrixFitNormElement, checkingIndices 
 
 __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
@@ -19,6 +17,8 @@ __DEF_PROJ = True
 __DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
+__DEF_MATRIX_FIT_SAMPLE_RATIO = 1
+__DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO = 0.1
 
 def rescal(X, D, rank, **kwargs):
     """
@@ -82,6 +82,8 @@ def rescal(X, D, rank, **kwargs):
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
     preheatnum = kwargs.pop('preheatnum', __DEF_PREHEATNUM)
     exactfit = kwargs.pop('exactfit', __DEF_EXACT_FIT)
+    matrixSampleRatio = kwargs.pop('matrixSampleRation', __DEF_MATRIX_FIT_SAMPLE_RATIO)
+    tensorSliceSampleRatio = kwargs.pop('tensorSliceSampleRation', __DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -128,8 +130,17 @@ def rescal(X, D, rank, **kwargs):
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
-
-    for iter in xrange(maxIter):
+    
+    # prepare the checking indices to compute the fit
+    if exactfit:
+        matrixFitIndices = []
+        tensorFitIndices = []
+    else :
+        matrixFitIndices = checkingIndices(D, ratio = matrixSampleRatio)
+        tensorFitIndices = [checkingIndices(M, ratio = tensorSliceSampleRatio) for M in X]
+        _log.debug('[Algorithm] Finished sampling of indices to compute the fit values.')
+        
+    for iterNum in xrange(maxIter):
         tic = time.clock()
         
         A = updateA(X, A, R, V, D, lmbda)
@@ -149,7 +160,7 @@ def rescal(X, D, rank, **kwargs):
         extRegularizedFit = 0
         regRFit = 0
         fitDAV = 0
-        if iter > preheatnum:
+        if iterNum > preheatnum:
             if lmbda != 0:
                 for i in xrange(len(R)):
                     regRFit += norm(R[i])**2
@@ -158,20 +169,21 @@ def rescal(X, D, rank, **kwargs):
                 extRegularizedFit = lmbda*(norm(V)**2)   
             if exactfit:
                 fitDAV = norm(D - dot(A,V))**2
-            else :                      
-                Drow, Dcol = D.nonzero()
-                for ff in xrange(len(Drow)):
-                    fitDAV += matrixFitNormElement(Drow[ff], Dcol[ff], D, A, V)
+            else :     
+                for ff in xrange(len(matrixFitIndices)):
+                        x, y = matrixFitIndices[ff]
+                        fitDAV += matrixFitNormElement(x, y, D, A, V)
             
             if exactfit:
                 for i in xrange(len(R)):
                     tensorFit += norm(X[i] - dot(A,dot(R[i], A.T)))**2
             else :
                 for i in xrange(len(R)):
-                    ARk = dot(A, R[i])       
-                    Xrow, Xcol = X[i].nonzero()
-                    for rr in xrange(len(Xrow)):
-                        tensorFit += fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A)           
+                    ARk = dot(A, R[i]) 
+                    iTensorFitIndices = tensorFitIndices[i]      
+                    for rr in xrange(len(iTensorFitIndices)):
+                        m, l = iTensorFitIndices[rr]
+                        tensorFit += fitNorm(m, l, X[i], ARk, A)           
             
             fit = 0.5*tensorFit
             fit += regularizedFit
@@ -184,13 +196,13 @@ def rescal(X, D, rank, **kwargs):
         toc = time.clock()
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
-        _log.debug('[%3d] total fit: %.10f | tensor fit: %.10f | matrix fit: %.10f | delta: %.10f | secs: %.5f' % (iter, 
+        _log.debug('[%3d] total fit: %.10f | tensor fit: %.10f | matrix fit: %.10f | delta: %.10f | secs: %.5f' % (iterNum, 
         fit, tensorFit, fitDAV, fitchange, exectimes[-1]))
             
         fitold = fit
-        if iter > preheatnum and fitchange < conv:
+        if iterNum > preheatnum and fitchange < conv:
             break
-    return A, R, fit, iter+1, array(exectimes), V
+    return A, R, fit, iterNum+1, array(exectimes), V
 
 def __updateR(X, A, lmbda):
     r = A.shape[1]
