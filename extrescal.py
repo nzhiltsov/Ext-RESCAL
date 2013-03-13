@@ -7,8 +7,8 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
-from extrescalFunctions import updateA, updateV, matrixFitNormElement, checkingIndices 
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, checkingIndices
+from extrescalFunctions import updateA, updateV, matrixFitNormElement 
 
 __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
@@ -18,7 +18,7 @@ __DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
 __DEF_MATRIX_FIT_SAMPLE_RATIO = 1
-__DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO = 0.1
+__DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO = 1
 
 def rescal(X, D, rank, **kwargs):
     """
@@ -82,8 +82,8 @@ def rescal(X, D, rank, **kwargs):
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
     preheatnum = kwargs.pop('preheatnum', __DEF_PREHEATNUM)
     exactfit = kwargs.pop('exactfit', __DEF_EXACT_FIT)
-    matrixSampleRatio = kwargs.pop('matrixSampleRation', __DEF_MATRIX_FIT_SAMPLE_RATIO)
-    tensorSliceSampleRatio = kwargs.pop('tensorSliceSampleRation', __DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO)
+    matrixSampleRatio = kwargs.pop('matrixSampleRatio', __DEF_MATRIX_FIT_SAMPLE_RATIO)
+    tensorSliceSampleRatio = kwargs.pop('tensorSliceSampleRatio', __DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -222,7 +222,6 @@ def __updateR(X, A, lmbda):
         
 
 def __projectSlices(X, Q):
-    q = Q.shape[1]
     X2 = []
     for i in xrange(len(X)):
         X2.append( dot(Q.T, X[i].dot(Q)) )
@@ -234,6 +233,7 @@ parser.add_argument("--lmbda", type=float, help="regularization parameter", requ
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
 parser.add_argument("--outputterms", type=str, help="the file, where the latent embedding for terms will be output", required=True)
+parser.add_argument("--outputfactors", type=str, help="the file, where the latent factors will be output", required=True)
 parser.add_argument("--log", type=str, help="log file", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
@@ -241,6 +241,7 @@ inputDir = args.input
 regularizationParam = args.lmbda
 outputEntities = args.outputentities
 outputTerms = args.outputterms
+outputFactors = args.outputfactors
 logFile = args.log
 
 logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
@@ -250,19 +251,19 @@ _log = logging.getLogger('RESCAL')
 dim = 0
 with open('./%s/entity-ids' % inputDir) as entityIds:
     for line in entityIds:
-          dim += 1
+        dim += 1
 print 'The number of entities: %d' % dim          
 
 numSlices = 0
 numNonzeroTensorEntries = 0
 X = []
-for file in os.listdir('./%s' % inputDir):
-    if fnmatch.fnmatch(file, '[0-9]*-rows'):
+for inputFile in os.listdir('./%s' % inputDir):
+    if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
         numSlices += 1
-        row = loadtxt('./%s/%s' % (inputDir, file), dtype=np.int32)
+        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.int32)
         if row.size == 1: 
             row = np.atleast_1d(row)
-        col = loadtxt('./%s/%s' % (inputDir, file.replace("rows", "cols")), dtype=np.int32)
+        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.int32)
         if col.size == 1: 
             col = np.atleast_1d(col)
         Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
@@ -296,4 +297,7 @@ A = result[0]
 savetxt(outputEntities, A)
 V = result[5]
 savetxt(outputTerms, V.T)
-
+R = result[1]
+with file(outputFactors, 'w') as outfile:
+    for i in xrange(len(R)):
+        savetxt(outfile, R[i])

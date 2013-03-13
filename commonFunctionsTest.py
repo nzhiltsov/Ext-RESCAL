@@ -1,7 +1,7 @@
 from numpy import ones, dot
 import numpy as np
 from scipy.sparse import coo_matrix
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, reservoir
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, reservoir, checkingIndices
 from numpy.linalg.linalg import norm
 from nose.tools import assert_almost_equal
 from itertools import product
@@ -42,4 +42,10 @@ def testSampling():
         assert checkedElements.count(sampledElements[i]) == 0
         checkedElements.append(sampledElements[i])
     assert len(checkedElements) == len(sampledElements)
+
+def testCheckingIndices():
+    D = coo_matrix((ones(6),([0, 1, 2, 3, 4, 5], [0, 1, 1, 2, 3, 3])), shape=(6, 4), dtype=np.uint8).tocsr()
+    indices = checkingIndices(D)
+    assert len(indices) >= 6 
+
     

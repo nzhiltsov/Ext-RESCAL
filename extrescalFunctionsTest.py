@@ -1,8 +1,7 @@
 from scipy.sparse import coo_matrix
 from numpy import ones, dot, eye
 import numpy as np
-from extrescalFunctions import updateA, updateV, matrixFitNormElement,\
-    checkingIndices
+from extrescalFunctions import updateA, updateV, matrixFitNormElement
 from nose.tools import assert_almost_equal
 from numpy.linalg import inv
 from numpy.linalg.linalg import norm
@@ -81,8 +80,4 @@ def testMatrixFitNorm():
             fit += matrixFitNormElement(i, j, D, A, V)
     assert_almost_equal(fit, expectedNorm)
         
-def testCheckingIndices():
-    D = coo_matrix((ones(6),([0, 1, 2, 3, 4, 5], [0, 1, 1, 2, 3, 3])), shape=(6, 4), dtype=np.uint8).tocsr()
-    indices = checkingIndices(D)
-    assert len(indices) >= 6 
     
