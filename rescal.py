@@ -1,5 +1,5 @@
 import logging, time, argparse
-from numpy import dot, zeros, empty, kron, array, eye, argmin, ones, savetxt, loadtxt
+from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
 from scipy import sparse
@@ -7,9 +7,8 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, checkingIndices
 
-__version__ = "0.1" 
 
 __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
@@ -18,6 +17,7 @@ __DEF_PROJ = True
 __DEF_CONV = 1e-5
 __DEF_LMBDA = 0
 __DEF_EXACT_FIT = False
+__DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO = 1
 
 def rescal(X, rank, **kwargs):
     """
@@ -78,6 +78,7 @@ def rescal(X, rank, **kwargs):
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
     preheatnum = kwargs.pop('preheatnum', __DEF_PREHEATNUM)
     exactfit = kwargs.pop('exactfit', __DEF_EXACT_FIT)
+    tensorSliceSampleRatio = kwargs.pop('tensorSliceSampleRatio', __DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -119,8 +120,14 @@ def rescal(X, rank, **kwargs):
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
+    
+    if exactfit:
+        tensorFitIndices = []
+    else :
+        tensorFitIndices = [checkingIndices(M, ratio = tensorSliceSampleRatio) for M in X]
+        _log.debug('[Algorithm] Finished sampling of indices to compute the fit values.')
 
-    for iter in xrange(maxIter):
+    for iterNum in xrange(maxIter):
         tic = time.clock()
         
         A = updateA(X, A, R, lmbda)
@@ -136,7 +143,7 @@ def rescal(X, rank, **kwargs):
         fit = 0
         regularizedFit = 0
         regRFit = 0 
-        if iter > preheatnum:
+        if iterNum > preheatnum:
             if lmbda != 0:   
                 for i in xrange(len(R)):
                     regRFit += norm(R[i])**2
@@ -148,9 +155,10 @@ def rescal(X, rank, **kwargs):
             else :
                 for i in xrange(len(R)):
                     ARk = dot(A, R[i])           
-                    Xrow, Xcol = X[i].nonzero()
-                    for rr in xrange(len(Xrow)):
-                        fit += fitNorm(Xrow[rr], Xcol[rr], X[i], ARk, A)
+                    iTensorFitIndices = tensorFitIndices[i]
+                    for rr in xrange(len(iTensorFitIndices)):
+                        m, l = iTensorFitIndices[rr]
+                        fit += fitNorm(m, l, X[i], ARk, A)
             fit *= 0.5
             fit += regularizedFit
             fit /= sumNormX 
@@ -160,13 +168,13 @@ def rescal(X, rank, **kwargs):
         toc = time.clock()
         exectimes.append( toc - tic )
         fitchange = abs(fitold - fit)
-        _log.debug('[%3d] total fit: %.10f | delta: %.10f | secs: %.5f' % (iter, 
+        _log.debug('[%3d] total fit: %.10f | delta: %.10f | secs: %.5f' % (iterNum, 
         fit, fitchange, exectimes[-1]))
             
         fitold = fit
-        if iter > preheatnum and fitchange < conv:
+        if iterNum > preheatnum and fitchange < conv:
             break
-    return A, R, fit, iter+1, array(exectimes)
+    return A, R, fit, iterNum+1, array(exectimes)
 
 def updateA(X, A, R, lmbda):
     n, rank = A.shape
@@ -199,7 +207,6 @@ def __updateR(X, A, lmbda):
     return R
 
 def __projectSlices(X, Q):
-    q = Q.shape[1]
     X2 = []
     for i in xrange(len(X)):
         X2.append( dot(Q.T, X[i].dot(Q)) )
@@ -210,12 +217,14 @@ parser.add_argument("--latent", type=int, help="number of latent components", re
 parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
 parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
+parser.add_argument("--outputfactors", type=str, help="the file, where the latent factors will be output", required=True)
 parser.add_argument("--log", type=str, help="log file", required=True)
 args = parser.parse_args()
 numLatentComponents = args.latent
 inputDir = args.input
 regularizationParam = args.lmbda
 outputEntities = args.outputentities
+outputFactors = args.outputfactors
 logFile = args.log
 
 logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
@@ -224,19 +233,19 @@ _log = logging.getLogger('RESCAL')
 dim = 0
 with open('./%s/entity-ids' % inputDir) as entityIds:
     for line in entityIds:
-          dim += 1
+        dim += 1
 print 'The number of entities: %d' % dim          
 
 numSlices = 0
 numNonzeroTensorEntries = 0
 X = []
-for file in os.listdir('./%s' % inputDir):
-    if fnmatch.fnmatch(file, '[0-9]*-rows'):
+for inputFile in os.listdir('./%s' % inputDir):
+    if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
         numSlices += 1
-        row = loadtxt('./%s/%s' % (inputDir, file), dtype=np.int32)
+        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.int32)
         if row.size == 1: 
             row = np.atleast_1d(row)
-        col = loadtxt('./%s/%s' % (inputDir, file.replace("rows", "cols")), dtype=np.int32)
+        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.int32)
         if col.size == 1: 
             col = np.atleast_1d(col)
         Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
@@ -249,7 +258,11 @@ print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntrie
 result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
 print 'Objective function value: %.30f' % result[2]
 print '# of iterations: %d' % result[3] 
-#print the matrix of latent embeddings
+#print the matrix of latent embeddings and matrix of latent factors
 A = result[0]
 savetxt(outputEntities, A)
+R = result[1]
+with file(outputFactors, 'w') as outfile:
+    for i in xrange(len(R)):
+        savetxt(outfile, R[i])
 
