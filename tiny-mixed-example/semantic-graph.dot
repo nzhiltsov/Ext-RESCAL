@@ -1,0 +1,8 @@
+digraph semantic_graph {
+"dbr:Vibeke" -> "dbr:Tristania" [label="member-of"];
+"dbr:Morten" -> "dbr:Tristania" [label="member-of"];
+"dbr:Tristania" -> "dbr:Metal" [label="genre"];
+"author1" -> "author2" [label="cites"];
+"author1" -> "author1" [label="cites"];
+"author2" -> "author2" [label="cites"];
+}
