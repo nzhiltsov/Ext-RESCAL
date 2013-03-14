@@ -1,6 +1,8 @@
 from numpy import dot
 from numpy.random import randint
 from numpy.random import random_integers
+from scipy.sparse import lil_matrix
+import numpy as np
 
 def squareFrobeniusNormOfSparse(M):
     """
@@ -12,12 +14,20 @@ def squareFrobeniusNormOfSparse(M):
         norm += M[rows[i],cols[i]] ** 2
     return norm
 
-def fitNorm(row, col, Xi, ARk, A):   
+def trace(M):
+    """ Compute the trace of a sparse matrix
     """
-    Computes i,j element of the squared Frobenius norm of the fitting matrix
+    return sum(M.diagonal())
+
+def fitNorm(X, A, R):   
     """
-    ARAtValue = dot(ARk[row,:], A[col,:])
-    return (Xi[row, col] - ARAtValue)**2
+    Computes the squared Frobenius norm of the fitting matrix || X - A*R*A^T ||,
+    where X is a sparse matrix
+    """
+    AtA = dot(A.T, A)
+    secondTerm = dot(A.T, dot(X.dot(A), R.T))
+    thirdTerm = dot(dot(AtA, R), dot(AtA, R.T))
+    return squareFrobeniusNormOfSparse(X) - 2 * trace(secondTerm) + np.trace(thirdTerm)
 
 def reservoir(it, k):
     ls = [next(it) for _ in range(k)]

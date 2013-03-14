@@ -1,6 +1,8 @@
 import numpy as np
 from numpy import dot, zeros, eye, empty
 from numpy.linalg import inv
+from commonFunctions import trace, squareFrobeniusNormOfSparse
+from scipy.sparse import lil_matrix
 
 def updateA(X, A, R, V, D, lmbda):
     n, rank = A.shape
@@ -26,11 +28,14 @@ def updateV(A, D, lmbda):
         invPart = inv(dot(At, A) + lmbda * eye(rank))
     return dot(invPart, At) * D
 
-def matrixFitNormElement(i, j, D, A, V):
+def matrixFitNorm(D, A, V):
     """
-    Computes i,j element of the fitting matrix Frobenius norm ||D - A*V||
+    Computes the Frobenius norm of the fitting matrix ||D - A*V||,
+    where D is a sparse matrix
     """ 
-    return (D[i,j] - dot(A[i,:], V[:, j]))**2
+    thirdTerm = dot(dot(V, V.T), dot(A.T, A))
+    secondTerm = dot(A.T, D.dot(V.T))
+    return squareFrobeniusNormOfSparse(D) - 2 * trace(secondTerm) + np.trace(thirdTerm)
 
 
     
