@@ -8,7 +8,7 @@ Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.l
 
 Current Version
 ------------
-[0.3](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.3.zip)
+[0.4](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.4.zip)
 
 Features
 ------------
@@ -56,6 +56,7 @@ Run the extended version of RESCAL algorithm to decompose a 3-D tensor and 2-D m
 <pre>python extrescal.py --latent 2 --lmbda 0.001 --input tiny-mixed-example --outputentities entity.embeddings.csv --outputterms term.embeddings.csv --outputfactors latent.factors.csv --log extrescal.log</pre>
 
 If we plot the resulting embeddings, we would get the following picture, which reveals the similarity of entities and words in the latent space:
+
 ![latent-space-visualization](tiny-mixed-example/TinyMixedExample.png)
 
 Development and Contribution
@@ -66,6 +67,10 @@ This is a fork of the original code base provided by [Maximilian Nickel](http://
 
 Release Notes
 ------------
+0.4 (March 14, 2013):
+
+* Add efficient computation of the exact objective value via trick with trace
+
 0.3 (March 12, 2013):
 
 * Fix random sampling for the basic task
