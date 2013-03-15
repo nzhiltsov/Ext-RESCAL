@@ -7,7 +7,7 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, checkingIndices
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
 
 
 __DEF_MAXITER = 50
@@ -16,8 +16,6 @@ __DEF_INIT = 'nvecs'
 __DEF_PROJ = True
 __DEF_CONV = 1e-5
 __DEF_LMBDA = 0
-__DEF_EXACT_FIT = False
-__DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO = 1
 
 def rescal(X, rank, **kwargs):
     """
@@ -25,7 +23,7 @@ def rescal(X, rank, **kwargs):
 
     Factors a three-way tensor X such that each frontal slice 
     X_k = A * R_k * A.T. The frontal slices of a tensor are 
-    N x N matrices that correspond to the adjecency matrices 
+    N x N matrices that correspond to the adjacency matrices 
     of the relational graph for a particular relation.
 
     For a full description of the algorithm see: 
@@ -49,17 +47,14 @@ def rescal(X, rank, **kwargs):
         Whether or not to use the QR decomposition when computing R_k.
         True by default 
     maxIter : int, optional 
-        Maximium number of iterations of the ALS algorithm. 500 by default. 
+        Maximium number of iterations of the ALS algorithm. 50 by default. 
     conv : float, optional 
-        Stop when residual of factorization is less than conv. 1e-5 by default
-    exactfit: boolean, optional
-        Whether or not to compute the exact fitting value
-        False by default (i.e., approximate the norm by non-zero values of the targeting tensor)    
+        Stop when residual of factorization is less than conv. 1e-5 by default        
 
     Returns 
     -------
     A : ndarray 
-        array of shape ('N', 'rank') corresponding to the factor matrix A
+        matrix of latent embeddings A
     R : list
         list of 'M' arrays of shape ('rank', 'rank') corresponding to the factor matrices R_k 
     f : float 
@@ -77,8 +72,6 @@ def rescal(X, rank, **kwargs):
     conv = kwargs.pop('conv', __DEF_CONV)
     lmbda = kwargs.pop('lmbda', __DEF_LMBDA)
     preheatnum = kwargs.pop('preheatnum', __DEF_PREHEATNUM)
-    exactfit = kwargs.pop('exactfit', __DEF_EXACT_FIT)
-    tensorSliceSampleRatio = kwargs.pop('tensorSliceSampleRatio', __DEF_TENSOR_SLICE_FIT_SAMPLE_RATIO)
 
     if not len(kwargs) == 0:
         raise ValueError( 'Unknown keywords (%s)' % (kwargs.keys()) )
@@ -86,16 +79,10 @@ def rescal(X, rank, **kwargs):
     sz = X[0].shape
     dtype = X[0].dtype 
     n = sz[0]
-    k = len(X) 
     
     _log.debug('[Config] rank: %d | maxIter: %d | conv: %7.1e | lmbda: %7.1e' % (rank, 
         maxIter, conv, lmbda))
     _log.debug('[Config] dtype: %s' % dtype)
-    
-    if exactfit:
-        _log.debug('[Config] The exact fit values will be computed during optimization.')
-    else:
-        _log.debug('[Config] The approximating fit values will be computed during optimization.')
     
     # precompute norms of X 
     normX = [squareFrobeniusNormOfSparse(M) for M in X]
@@ -120,12 +107,6 @@ def rescal(X, rank, **kwargs):
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
-    
-    if exactfit:
-        tensorFitIndices = []
-    else :
-        tensorFitIndices = [checkingIndices(M, ratio = tensorSliceSampleRatio) for M in X]
-        _log.debug('[Algorithm] Finished sampling of indices to compute the fit values.')
 
     for iterNum in xrange(maxIter):
         tic = time.clock()
@@ -137,28 +118,19 @@ def rescal(X, rank, **kwargs):
             R = __updateR(X2, A2, lmbda)
         else :
             raise 'Projection via QR decomposition is required; pass proj=true'
-#            R = __updateR(X, A, lmbda)
 
         # compute fit values
         fit = 0
         regularizedFit = 0
         regRFit = 0 
-        if iterNum > preheatnum:
+        if iterNum >= preheatnum:
             if lmbda != 0:   
                 for i in xrange(len(R)):
                     regRFit += norm(R[i])**2
                 regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
             
-            if exactfit:
-                for i in xrange(len(R)):
-                    fit = norm(X[i] - dot(A,dot(R[i], A.T)))**2
-            else :
-                for i in xrange(len(R)):
-                    ARk = dot(A, R[i])           
-                    iTensorFitIndices = tensorFitIndices[i]
-                    for rr in xrange(len(iTensorFitIndices)):
-                        m, l = iTensorFitIndices[rr]
-                        fit += fitNorm(m, l, X[i], ARk, A)
+            for i in xrange(len(R)):
+                fit += fitNorm(X[i], A, R[i])
             fit *= 0.5
             fit += regularizedFit
             fit /= sumNormX 
