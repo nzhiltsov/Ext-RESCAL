@@ -33,9 +33,12 @@ def matrixFitNorm(D, A, V):
     Computes the Frobenius norm of the fitting matrix ||D - A*V||,
     where D is a sparse matrix
     """ 
+    return squareFrobeniusNormOfSparse(D) + matrixFitNormWithoutNormD(D, A, V)
+
+def matrixFitNormWithoutNormD(D, A, V):
     thirdTerm = dot(dot(V, V.T), dot(A.T, A))
     secondTerm = dot(A.T, D.dot(V.T))
-    return squareFrobeniusNormOfSparse(D) - 2 * trace(secondTerm) + np.trace(thirdTerm)
+    return np.trace(thirdTerm) - 2 * trace(secondTerm) 
 
 
     

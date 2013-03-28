@@ -7,7 +7,7 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
+from commonFunctions import squareFrobeniusNormOfSparse, fitNormWithoutNormX
 
 
 __DEF_MAXITER = 50
@@ -130,7 +130,7 @@ def rescal(X, rank, **kwargs):
                 regularizedFit = lmbda*(norm(A)**2) + lmbda*regRFit
             
             for i in xrange(len(R)):
-                fit += fitNorm(X[i], A, R[i])
+                fit += (normX[i] + fitNormWithoutNormX(X[i], A, R[i]))
             fit *= 0.5
             fit += regularizedFit
             fit /= sumNormX 

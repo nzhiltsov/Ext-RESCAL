@@ -1,7 +1,8 @@
 from scipy.sparse import coo_matrix
 from numpy import ones, dot, eye
 import numpy as np
-from extrescalFunctions import updateA, updateV, matrixFitNorm
+from extrescalFunctions import updateA, updateV, matrixFitNorm, matrixFitNormWithoutNormD
+from commonFunctions import squareFrobeniusNormOfSparse
 from nose.tools import assert_almost_equal
 from numpy.linalg import inv
 from numpy.linalg.linalg import norm
@@ -74,5 +75,6 @@ def testMatrixFitNorm():
     D = coo_matrix((ones(6),([0, 1, 2, 3, 4, 5], [0, 1, 1, 2, 3, 3])), shape=(6, 4), dtype=np.uint8).tocsr()
     expectedNorm = norm(D - dot(A,V))**2
     assert_almost_equal(matrixFitNorm(D, A, V), expectedNorm)
+    assert_almost_equal(squareFrobeniusNormOfSparse(D) + matrixFitNormWithoutNormD(D, A, V), expectedNorm)
         
     

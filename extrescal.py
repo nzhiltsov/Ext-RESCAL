@@ -7,8 +7,8 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm
-from extrescalFunctions import updateA, updateV, matrixFitNorm 
+from commonFunctions import squareFrobeniusNormOfSparse, fitNormWithoutNormX
+from extrescalFunctions import updateA, updateV, matrixFitNormWithoutNormD 
 
 __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
@@ -147,10 +147,10 @@ def rescal(X, D, rank, **kwargs):
             if lmbda != 0: 
                 extRegularizedFit = lmbda*(norm(V)**2)   
 
-            fitDAV = matrixFitNorm(D, A, V)
+            fitDAV = normD + matrixFitNormWithoutNormD(D, A, V)
 
             for i in xrange(len(R)):
-                tensorFit += fitNorm(X[i], A, R[i])           
+                tensorFit += (normX[i] + fitNormWithoutNormX(X[i], A, R[i]))           
             
             fit = 0.5*tensorFit
             fit += regularizedFit
