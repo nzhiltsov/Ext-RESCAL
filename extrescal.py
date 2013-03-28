@@ -3,7 +3,8 @@ from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
 from scipy import sparse
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, lil_matrix
+from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
 import fnmatch
@@ -87,7 +88,6 @@ def rescal(X, D, rank, **kwargs):
     
     _log.debug('[Config] rank: %d | maxIter: %d | conv: %7.1e | lmbda: %7.1e' % (rank, 
         maxIter, conv, lmbda))
-    _log.debug('[Config] dtype: %s' % dtype)
     
     # precompute norms of X 
     normX = [squareFrobeniusNormOfSparse(M) for M in X]
@@ -96,11 +96,17 @@ def rescal(X, D, rank, **kwargs):
     _log.debug('[Algorithm] The tensor norm: %.5f' % sumNormX)
     _log.debug('[Algorithm] The extended matrix norm: %.5f' % normD)
     # initialize A
-    A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
-        A = array(rand(n, rank), dtype=np.float64)
+        _log.debug('[Algorithm] The random initialization will be performed.')
+        A = array(rand(n, rank), dtype=np.float64)    
+    elif ainit == 'nvecs':
+        _log.debug('[Algorithm] The eigenvector based initialization will be performed.')
+        avgX = lil_matrix((n, n))
+        for i in range(len(X)):
+            avgX += (X[i] + X[i].T)
+        eigvalsX, A = eigsh(avgX, rank) 
     else :
-        raise 'This type of initialization is not supported, please use random'
+        raise 'Unknown init option ("%s")' % ainit
 
     # initialize R
     if proj:
@@ -112,14 +118,21 @@ def rescal(X, D, rank, **kwargs):
     
     # initialize V
     DrowSize, DcolSize = D.shape
-    V = array(rand(rank, DcolSize), dtype=np.float64)
     
+    if ainit == 'random':
+        V = array(rand(rank, DcolSize), dtype=np.float64)    
+    elif ainit == 'nvecs':
+        avgD = D[range(DcolSize),:]
+        eigvalsD, Vt = eigsh(avgD + avgD.T, rank)
+        V = Vt.T 
+    else :
+        raise 'Unknown init option ("%s")' % ainit
+    
+    _log.debug('[Algorithm] Finished initialization.')
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
     
-    # prepare the checking indices to compute the fit
-        
     for iterNum in xrange(maxIter):
         tic = time.clock()
         
@@ -212,7 +225,7 @@ outputFactors = args.outputfactors
 logFile = args.log
 
 logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
-_log = logging.getLogger('RESCAL') 
+_log = logging.getLogger('EXT-RESCAL') 
 
 
 dim = 0
@@ -252,11 +265,11 @@ if extRow.size == 1:
 extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
 if extCol.size == 1: 
     extCol = np.atleast_1d(extCol)
-D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.uint8).tocsr()
+D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.float64).tocsr()
 
 print 'The number of non-zero values in the additional matrix: %d' % extRow.size         
 
-result = rescal(X, D, numLatentComponents, init='random', lmbda=regularizationParam)
+result = rescal(X, D, numLatentComponents, lmbda=regularizationParam)
 print 'Objective function value: %.30f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrices of latent embeddings

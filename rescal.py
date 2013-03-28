@@ -3,7 +3,8 @@ from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
 from scipy import sparse
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, lil_matrix
+from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
 import fnmatch
@@ -82,7 +83,6 @@ def rescal(X, rank, **kwargs):
     
     _log.debug('[Config] rank: %d | maxIter: %d | conv: %7.1e | lmbda: %7.1e' % (rank, 
         maxIter, conv, lmbda))
-    _log.debug('[Config] dtype: %s' % dtype)
     
     # precompute norms of X 
     normX = [squareFrobeniusNormOfSparse(M) for M in X]
@@ -90,11 +90,17 @@ def rescal(X, rank, **kwargs):
     _log.debug('[Algorithm] The tensor norm: %.5f' % sumNormX)
     
     # initialize A
-    A = zeros((n,rank), dtype=np.float64)
     if ainit == 'random':
+        _log.debug('[Algorithm] The random initialization will be performed.')
         A = array(rand(n, rank), dtype=np.float64)    
+    elif ainit == 'nvecs':
+        _log.debug('[Algorithm] The eigenvector based initialization will be performed.')
+        avgX = lil_matrix((n, n))
+        for i in range(len(X)):
+            avgX += (X[i] + X[i].T)
+        eigvals, A = eigsh(avgX, rank) 
     else :
-        raise 'This type of initialization is not supported, please use random'
+        raise 'Unknown init option ("%s")' % ainit 
 
     # initialize R
     if proj:
@@ -104,10 +110,11 @@ def rescal(X, rank, **kwargs):
     else :
         raise 'Projection via QR decomposition is required; pass proj=true'
 
+    _log.debug('[Algorithm] Finished initialization.')
     # compute factorization
     fit = fitchange = fitold = 0
     exectimes = []
-
+    
     for iterNum in xrange(maxIter):
         tic = time.clock()
         
@@ -227,7 +234,7 @@ for inputFile in os.listdir('./%s' % inputDir):
 print 'The number of tensor slices: %d' % numSlices
 print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
 
-result = rescal(X, numLatentComponents, init='random', lmbda=regularizationParam)
+result = rescal(X, numLatentComponents, lmbda=regularizationParam)
 print 'Objective function value: %.30f' % result[2]
 print '# of iterations: %d' % result[3] 
 #print the matrix of latent embeddings and matrix of latent factors
