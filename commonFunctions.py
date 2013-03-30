@@ -24,10 +24,14 @@ def fitNorm(X, A, R):
     Computes the squared Frobenius norm of the fitting matrix || X - A*R*A^T ||,
     where X is a sparse matrix
     """
+    return squareFrobeniusNormOfSparse(X) + fitNormWithoutNormX(X, A, R)
+
+def fitNormWithoutNormX(X, A, R):
     AtA = dot(A.T, A)
     secondTerm = dot(A.T, dot(X.dot(A), R.T))
     thirdTerm = dot(dot(AtA, R), dot(AtA, R.T))
-    return squareFrobeniusNormOfSparse(X) - 2 * trace(secondTerm) + np.trace(thirdTerm)
+    return np.trace(thirdTerm) - 2 * trace(secondTerm)
+    
 
 def reservoir(it, k):
     ls = [next(it) for _ in range(k)]

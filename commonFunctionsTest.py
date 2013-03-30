@@ -1,7 +1,7 @@
 from numpy import ones, dot
 import numpy as np
 from scipy.sparse import coo_matrix
-from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, reservoir, checkingIndices
+from commonFunctions import squareFrobeniusNormOfSparse, fitNorm, fitNormWithoutNormX, reservoir, checkingIndices
 from numpy.linalg.linalg import norm
 from nose.tools import assert_almost_equal
 from itertools import product
@@ -24,6 +24,7 @@ def testFitNorm():
          [0.1, 0.9]])
     expectedNorm = norm(X - dot(A,dot(R, A.T)))**2
     assert_almost_equal(fitNorm(X, A, R), expectedNorm)  
+    assert_almost_equal(fitNormWithoutNormX(X, A, R) + squareFrobeniusNormOfSparse(X), expectedNorm)
     
 def testSampling():
     xs = range(0, 3)
