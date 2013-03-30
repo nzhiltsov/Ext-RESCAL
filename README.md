@@ -4,11 +4,11 @@ Ext-RESCAL
 Scalable Tensor Factorization
 ------------------------------
 
-Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf), a state-of-the-art algorithm for DEDICOM tensor factorization. Ext-RESCAL is written in Python and relies on the SciPy Sparse module.
+Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf), a state-of-the-art algorithm for DEDICOM-like tensor factorization. Ext-RESCAL is written in Python and relies on the SciPy Sparse module.
 
 Current Version
 ------------
-[0.4](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.4.zip)
+[0.5](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.5.zip)
 
 Features
 ------------
@@ -62,11 +62,16 @@ If we plot the resulting embeddings, we would get the following picture, which r
 Development and Contribution
 ----------------------
 
-This is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL has been developed by [Nikita Zhiltsov](http://cll.niimm.ksu.ru/cms/lang/en_US/main/people/zhiltsov). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests into the _develop_ branch.
+Ext-RESCAL has been developed by [Nikita Zhiltsov](http://cll.niimm.ksu.ru/cms/lang/en_US/main/people/zhiltsov). This project is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests into the _develop_ branch.
 
 
 Release Notes
 ------------
+
+0.5 (March 29, 2013):
+
+* Greatly improve the convergence speed via initialization of starting matrices with eigenvectors
+
 0.4 (March 14, 2013):
 
 * Add efficient computation of the exact objective value via trick with trace
