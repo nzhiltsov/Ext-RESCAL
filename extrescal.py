@@ -119,14 +119,7 @@ def rescal(X, D, rank, **kwargs):
     # initialize V
     DrowSize, DcolSize = D.shape
     
-    if ainit == 'random':
-        V = array(rand(rank, DcolSize), dtype=np.float64)    
-    elif ainit == 'nvecs':
-        avgD = D[range(DcolSize),:]
-        eigvalsD, Vt = eigsh(avgD + avgD.T, rank)
-        V = Vt.T 
-    else :
-        raise 'Unknown init option ("%s")' % ainit
+    V = array(rand(rank, DcolSize), dtype=np.float64)     
     
     _log.debug('[Algorithm] Finished initialization.')
     # compute factorization
