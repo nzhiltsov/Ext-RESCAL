@@ -204,8 +204,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--latent", type=int, help="number of latent components", required=True)
 parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
 parser.add_argument("--input", type=str, help="the directory, where the input data are stored", required=True)
-parser.add_argument("--outputentities", type=str, help="the file, where the latent embedding for entities will be output", required=True)
-parser.add_argument("--outputterms", type=str, help="the file, where the latent embedding for terms will be output", required=True)
+parser.add_argument("--outputentities", type=str, help="the file, where the latent embeddings for entities will be output", required=True)
+parser.add_argument("--outputterms", type=str, help="the file, where the inverted matrix of latent embeddings for terms will be output", required=True)
 parser.add_argument("--outputfactors", type=str, help="the file, where the latent factors will be output", required=True)
 parser.add_argument("--log", type=str, help="log file", required=True)
 args = parser.parse_args()
@@ -269,7 +269,7 @@ print '# of iterations: %d' % result[3]
 A = result[0]
 savetxt(outputEntities, A)
 V = result[5]
-savetxt(outputTerms, V.T)
+savetxt(outputTerms, pinv(V))
 R = result[1]
 with file(outputFactors, 'w') as outfile:
     for i in xrange(len(R)):
