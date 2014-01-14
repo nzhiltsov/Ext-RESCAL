@@ -114,12 +114,7 @@ def rescal(X, D, rank, **kwargs):
         X2 = __projectSlices(X, Q)
         R = __updateR(X2, A2, lmbda)
     else :
-        raise 'Projection via QR decomposition is required; pass proj=true'
-    
-    # initialize V
-    DrowSize, DcolSize = D.shape
-    
-    V = array(rand(rank, DcolSize), dtype=np.float64)     
+        raise 'Projection via QR decomposition is required; pass proj=true'    
     
     _log.debug('[Algorithm] Finished initialization.')
     # compute factorization
@@ -129,6 +124,8 @@ def rescal(X, D, rank, **kwargs):
     for iterNum in xrange(maxIter):
         tic = time.clock()
         
+        V = updateV(A, D, lmbda)
+        
         A = updateA(X, A, R, V, D, lmbda)
         if proj:
             Q, A2 = qr(A)
@@ -137,7 +134,6 @@ def rescal(X, D, rank, **kwargs):
         else :
             raise 'Projection via QR decomposition is required; pass proj=true'
 
-        V = updateV(A, D, lmbda)
         # compute fit values
         fit = 0
         tensorFit = 0
@@ -269,7 +265,7 @@ print '# of iterations: %d' % result[3]
 A = result[0]
 savetxt(outputEntities, A)
 V = result[5]
-savetxt(outputTerms, pinv(V))
+savetxt(outputTerms, V.T)
 R = result[1]
 with file(outputFactors, 'w') as outfile:
     for i in xrange(len(R)):
