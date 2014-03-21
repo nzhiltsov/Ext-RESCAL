@@ -1,9 +1,9 @@
 import logging, time, argparse
-from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt
+from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt, matrix
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
 from scipy import sparse
-from scipy.sparse import coo_matrix, lil_matrix
+from scipy.sparse import coo_matrix, lil_matrix, dok_matrix
 from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
@@ -134,6 +134,7 @@ def rescal(X, D, rank, **kwargs):
         else :
             raise 'Projection via QR decomposition is required; pass proj=true'
 
+        
         # compute fit values
         fit = 0
         tensorFit = 0
@@ -254,7 +255,15 @@ if extRow.size == 1:
 extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
 if extCol.size == 1: 
     extCol = np.atleast_1d(extCol)
-D = coo_matrix((ones(extRow.size),(extRow,extCol)), shape=(dim,extDim), dtype=np.float64).tocsr()
+extVal = loadtxt('./%s/ext-matrix-elements' % inputDir, dtype=np.float64)
+if extVal.size == 1: 
+    extVal = np.atleast_1d(extVal)
+        
+D = dok_matrix((dim,extDim), dtype=np.float64)
+for i in xrange(extVal.size):
+    D[extRow[i], extCol[i]] = extVal[i]
+            
+D = D.tocsr()
 
 print 'The number of non-zero values in the additional matrix: %d' % extRow.size         
 
