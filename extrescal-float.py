@@ -230,15 +230,16 @@ X = []
 for inputFile in os.listdir('./%s' % inputDir):
     if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
         numSlices += 1
-        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.int32)
+        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.uint32)
         if row.size == 1: 
             row = np.atleast_1d(row)
-        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.int32)
+        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.uint32)
         if col.size == 1: 
             col = np.atleast_1d(col)
-        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
+        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.bool).tolil()
         numNonzeroTensorEntries += row.size
         X.append(Xi)
+        print 'loaded %d: %s' % (numSlices, inputFile)
         
 print 'The number of tensor slices: %d' % numSlices
 print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
@@ -249,17 +250,17 @@ with open('./%s/words' % inputDir) as words:
         extDim += 1
 print 'The number of words: %d' % extDim
 
-extRow = loadtxt('./%s/ext-matrix-rows' % inputDir, dtype=np.int32)
+extRow = loadtxt('./%s/ext-matrix-rows' % inputDir, dtype=np.uint32)
 if extRow.size == 1: 
     extRow = np.atleast_1d(extRow)
-extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
+extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.uint32)
 if extCol.size == 1: 
     extCol = np.atleast_1d(extCol)
-extVal = loadtxt('./%s/ext-matrix-elements' % inputDir, dtype=np.float64)
+extVal = loadtxt('./%s/ext-matrix-elements' % inputDir, dtype=np.float32)
 if extVal.size == 1: 
     extVal = np.atleast_1d(extVal)
         
-D = dok_matrix((dim,extDim), dtype=np.float64)
+D = dok_matrix((dim,extDim), dtype=np.float32)
 for i in xrange(extVal.size):
     D[extRow[i], extCol[i]] = extVal[i]
             

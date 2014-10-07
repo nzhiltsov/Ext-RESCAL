@@ -221,15 +221,16 @@ X = []
 for inputFile in os.listdir('./%s' % inputDir):
     if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
         numSlices += 1
-        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.int32)
+        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.uint32)
         if row.size == 1: 
             row = np.atleast_1d(row)
-        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.int32)
+        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.uint32)
         if col.size == 1: 
             col = np.atleast_1d(col)
-        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
+        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.bool).tolil()
         numNonzeroTensorEntries += row.size
         X.append(Xi)
+        print 'loaded %d: %s' % (numSlices, inputFile)
         
 print 'The number of tensor slices: %d' % numSlices
 print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
