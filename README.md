@@ -8,7 +8,7 @@ Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.l
 
 Current Version
 ------------
-[0.6](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.6.zip)
+[0.7](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.7.zip)
 
 Features
 ------------
@@ -16,7 +16,7 @@ Features
 * 3-D sparse tensor factorization [1]
 * Joint 3-D sparse tensor and 2-D sparse matrix factorization (extended version) [2-3]
 * Handy input format
-* Support of float values
+* Support of float values as tensor values
 * The implementation provably scales well to the domains with millions of nodes on the affordable hardware
 
 
@@ -69,11 +69,19 @@ In case of float values in the entity-term matrix (e.g. TF-IDF weighted vectors)
 Development and Contribution
 ----------------------
 
-Ext-RESCAL has been developed by [Nikita Zhiltsov](http://linkedin.com/in/nzhiltsov). This project is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests into the _develop_ branch.
+Ext-RESCAL has been developed by [Nikita Zhiltsov](http://linkedin.com/in/nzhiltsov). This project is a fork of the original code base provided by [Maximilian Nickel](http://www.cip.ifi.lmu.de/~nickel/) (see [his latest implementation](https://github.com/mnick/scikit-tensor) available under GPL license). Ext-RESCAL may contain some bugs, so, if you find any of them, feel free to contribute the patches via pull requests into the _develop_ branch. If you want to contribute, but have no idea how, please ask on [Ext-RESCAL Google Group](https://groups.google.com/d/forum/ext-rescal).
+
+Support
+-------
+Feel free to ask any questions on [Ext-RESCAL Google Group](https://groups.google.com/d/forum/ext-rescal). 
 
 
 Release Notes
 ------------
+0.7 (October 8, 2014):
+
+* Grealy improve the memory consumption for all scripts after refactoring to using csr_matrix
+
 0.6 (March 21, 2014):
 
 * Make the extended algorigthm output fixed (by replacing random initialization)
