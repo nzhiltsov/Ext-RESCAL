@@ -1,8 +1,10 @@
-from numpy import dot
+from numpy import dot, loadtxt, ones
 from numpy.random import randint
 from numpy.random import random_integers
-from scipy.sparse import lil_matrix
+from scipy.sparse import csr_matrix
 import numpy as np
+import fnmatch
+import os
 
 def squareFrobeniusNormOfSparse(M):
     """
@@ -55,3 +57,24 @@ def checkingIndices(M, ratio = 1):
     sampledIndices = zip(sampledRows, sampledCols)
     indices = list(set(sampledIndices + nonzeroIndices))
     return indices
+
+def loadX(inputDir, dim):
+    X = []
+    numSlices = 0
+    numNonzeroTensorEntries = 0
+    for inputFile in os.listdir('./%s' % inputDir):
+        if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
+            numSlices += 1
+            row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.uint32)
+            if row.size == 1: 
+                row = np.atleast_1d(row)
+            col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.uint32)
+            if col.size == 1: 
+                col = np.atleast_1d(col)
+            Xi = csr_matrix((ones(row.size),(row,col)), shape=(dim,dim))
+            numNonzeroTensorEntries += row.size
+            X.append(Xi)
+            print 'loaded %d: %s' % (numSlices, inputFile)
+    print 'The number of tensor slices: %d' % numSlices
+    print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
+    return X
