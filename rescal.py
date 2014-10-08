@@ -3,7 +3,7 @@ from numpy import dot, zeros, kron, array, eye, ones, savetxt, loadtxt
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
 from scipy import sparse
-from scipy.sparse import coo_matrix, lil_matrix
+from scipy.sparse import coo_matrix, lil_matrix, csr_matrix
 from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
@@ -191,6 +191,28 @@ def __projectSlices(X, Q):
         X2.append( dot(Q.T, X[i].dot(Q)) )
     return X2
 
+@profile
+def loadX():
+    X = []
+    numSlices = 0
+    numNonzeroTensorEntries = 0
+    for inputFile in os.listdir('./%s' % inputDir):
+        if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
+            numSlices += 1
+            row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.uint32)
+            if row.size == 1: 
+                row = np.atleast_1d(row)
+            col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.uint32)
+            if col.size == 1: 
+                col = np.atleast_1d(col)
+            Xi = csr_matrix((ones(row.size),(row,col)), shape=(dim,dim))
+            numNonzeroTensorEntries += row.size
+            X.append(Xi)
+            print 'loaded %d: %s' % (numSlices, inputFile)
+    print 'The number of tensor slices: %d' % numSlices
+    print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
+    return X
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--latent", type=int, help="number of latent components", required=True)
 parser.add_argument("--lmbda", type=float, help="regularization parameter", required=True)
@@ -215,26 +237,10 @@ with open('./%s/entity-ids' % inputDir) as entityIds:
         dim += 1
 print 'The number of entities: %d' % dim          
 
-numSlices = 0
-numNonzeroTensorEntries = 0
-X = []
-for inputFile in os.listdir('./%s' % inputDir):
-    if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
-        numSlices += 1
-        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.uint32)
-        if row.size == 1: 
-            row = np.atleast_1d(row)
-        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.uint32)
-        if col.size == 1: 
-            col = np.atleast_1d(col)
-        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.bool).tolil()
-        numNonzeroTensorEntries += row.size
-        X.append(Xi)
-        print 'loaded %d: %s' % (numSlices, inputFile)
-        
-print 'The number of tensor slices: %d' % numSlices
-print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
 
+
+X = loadX()
+        
 result = rescal(X, numLatentComponents, lmbda=regularizationParam)
 print 'Objective function value: %.30f' % result[2]
 print '# of iterations: %d' % result[3] 
@@ -245,4 +251,3 @@ R = result[1]
 with file(outputFactors, 'w') as outfile:
     for i in xrange(len(R)):
         savetxt(outfile, R[i])
-
