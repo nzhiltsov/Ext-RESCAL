@@ -8,8 +8,8 @@ from scipy.sparse.linalg import eigsh
 import numpy as np
 import os
 import fnmatch
-from commonFunctions import squareFrobeniusNormOfSparse, fitNormWithoutNormX
-from extrescalFunctions import updateA, updateV, matrixFitNormWithoutNormD 
+from commonFunctions import squareFrobeniusNormOfSparse, fitNormWithoutNormX, loadX
+from extrescalFunctions import updateA, updateV, matrixFitNormWithoutNormD, loadDfloat
 
 __DEF_MAXITER = 50
 __DEF_PREHEATNUM = 1
@@ -224,48 +224,9 @@ with open('./%s/entity-ids' % inputDir) as entityIds:
         dim += 1
 print 'The number of entities: %d' % dim          
 
-numSlices = 0
-numNonzeroTensorEntries = 0
-X = []
-for inputFile in os.listdir('./%s' % inputDir):
-    if fnmatch.fnmatch(inputFile, '[0-9]*-rows'):
-        numSlices += 1
-        row = loadtxt('./%s/%s' % (inputDir, inputFile), dtype=np.int32)
-        if row.size == 1: 
-            row = np.atleast_1d(row)
-        col = loadtxt('./%s/%s' % (inputDir, inputFile.replace("rows", "cols")), dtype=np.int32)
-        if col.size == 1: 
-            col = np.atleast_1d(col)
-        Xi = coo_matrix((ones(row.size),(row,col)), shape=(dim,dim), dtype=np.uint8).tolil()
-        numNonzeroTensorEntries += row.size
-        X.append(Xi)
+X = loadX(inputDir, dim)
         
-print 'The number of tensor slices: %d' % numSlices
-print 'The number of non-zero values in the tensor: %d' % numNonzeroTensorEntries
-
-extDim = 0
-with open('./%s/words' % inputDir) as words:
-    for line in words:
-        extDim += 1
-print 'The number of words: %d' % extDim
-
-extRow = loadtxt('./%s/ext-matrix-rows' % inputDir, dtype=np.int32)
-if extRow.size == 1: 
-    extRow = np.atleast_1d(extRow)
-extCol = loadtxt('./%s/ext-matrix-cols' % inputDir, dtype=np.int32)
-if extCol.size == 1: 
-    extCol = np.atleast_1d(extCol)
-extVal = loadtxt('./%s/ext-matrix-elements' % inputDir, dtype=np.float64)
-if extVal.size == 1: 
-    extVal = np.atleast_1d(extVal)
-        
-D = dok_matrix((dim,extDim), dtype=np.float64)
-for i in xrange(extVal.size):
-    D[extRow[i], extCol[i]] = extVal[i]
-            
-D = D.tocsr()
-
-print 'The number of non-zero values in the additional matrix: %d' % extRow.size         
+D = loadDfloat(inputDir, dim)         
 
 result = rescal(X, D, numLatentComponents, lmbda=regularizationParam)
 print 'Objective function value: %.30f' % result[2]
