@@ -6,6 +6,10 @@ import numpy as np
 import fnmatch
 import os
 
+def squareFrobeniusNormOfSparseBoolean(M):
+    rows, cols = M.nonzero()
+    return len(rows) 
+
 def squareFrobeniusNormOfSparse(M):
     """
     Computes the square of the Frobenius norm

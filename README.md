@@ -8,7 +8,7 @@ Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.l
 
 Current Version
 ------------
-[0.7](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.7.zip)
+[0.7.1](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.7.1.zip)
 
 Features
 ------------
@@ -81,6 +81,7 @@ Release Notes
 0.7 (October 8, 2014):
 
 * Grealy improve the memory consumption for all scripts after refactoring to using csr_matrix
+* Fix the eigenvalue initialization
 
 0.6 (March 21, 2014):
 
