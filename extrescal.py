@@ -5,7 +5,7 @@ from numpy.random import rand
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import eigsh
 import numpy as np
-from commonFunctions import squareFrobeniusNormOfSparse, fitNormWithoutNormX, loadX
+from commonFunctions import squareFrobeniusNormOfSparse, squareFrobeniusNormOfSparseBoolean, fitNormWithoutNormX, loadX
 from extrescalFunctions import updateA, updateV, matrixFitNormWithoutNormD, loadD
 
 __DEF_MAXITER = 50
@@ -87,7 +87,7 @@ def rescal(X, D, rank, **kwargs):
         maxIter, conv, lmbda))
     
     # precompute norms of X 
-    normX = [squareFrobeniusNormOfSparse(M) for M in X]
+    normX = [squareFrobeniusNormOfSparseBoolean(M) for M in X]
     sumNormX = sum(normX)
     normD = squareFrobeniusNormOfSparse(D)
     _log.debug('[Algorithm] The tensor norm: %.5f' % sumNormX)
@@ -101,7 +101,11 @@ def rescal(X, D, rank, **kwargs):
         avgX = lil_matrix((n, n))
         for i in range(len(X)):
             avgX += (X[i] + X[i].T)
-        eigvalsX, A = eigsh(avgX, rank) 
+        tic = time.clock()    
+        eigvals, A = eigsh(avgX.tocsc(), rank) 
+        toc = time.clock()
+        elapsed = toc - tic
+        _log.debug('eigenvector decomposition required secs: %.5f' % elapsed) 
     else :
         raise 'Unknown init option ("%s")' % ainit
 
