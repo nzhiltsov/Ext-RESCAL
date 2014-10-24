@@ -2,7 +2,6 @@ import logging, time, argparse
 from numpy import dot, zeros, kron, array, eye, savetxt
 from numpy.linalg import qr, pinv, norm, inv 
 from numpy.random import rand
-from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import eigsh
 import numpy as np
 
@@ -94,9 +93,14 @@ def rescal(X, rank, **kwargs):
         A = array(rand(n, rank), dtype=np.float64)    
     elif ainit == 'nvecs':
         _log.debug('[Algorithm] The eigenvector based initialization will be performed.')
-        avgX = lil_matrix((n, n))
-        for i in range(len(X)):
-            avgX += (X[i] + X[i].T)
+        tic = time.clock()
+        avgX = X[0] + X[0].T
+        for i in range(1, len(X)):
+            avgX = avgX + (X[i] + X[i].T)
+        toc = time.clock()         
+        elapsed = toc - tic
+        _log.debug('Initializing tensor slices by summation required secs: %.5f' % elapsed)
+        
         tic = time.clock()    
         eigvals, A = eigsh(avgX.tocsc(), rank) 
         toc = time.clock()
