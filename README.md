@@ -4,11 +4,11 @@ Ext-RESCAL
 Scalable Tensor Factorization
 ------------------------------
 
-Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf), a state-of-the-art algorithm for DEDICOM-like tensor factorization. Ext-RESCAL is written in Python and leverages on the SciPy Sparse module.
+Ext-RESCAL is a memory efficient implementation of [RESCAL](http://www.cip.ifi.lmu.de/~nickel/data/slides-icml2011.pdf), a state-of-the-art algorithm for DEDICOM-like tensor factorization. Ext-RESCAL is written in Python and leverages the SciPy Sparse module.
 
 Current Version
 ------------
-[0.7.1](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.7.1.zip)
+[0.7.2](https://github.com/nzhiltsov/Ext-RESCAL/archive/0.7.2.zip)
 
 Features
 ------------
@@ -82,6 +82,7 @@ Release Notes
 
 * Grealy improve the memory consumption for all scripts after refactoring to using csr_matrix
 * Fix the eigenvalue initialization
+* Improve (speed up) initialization of A by summation
 
 0.6 (March 21, 2014):
 
